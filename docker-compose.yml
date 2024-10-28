@@ -1,0 +1,19 @@
+version: "3.1"
+
+services:
+  aura-proxy:
+    container_name: aura-proxy
+    image: aura-go:latest
+    restart: always
+    tty: true
+    ports:
+      - "${PROXY_PORT}:${PROXY_PORT}"
+      - "${PROXY_METRICS_PORT}:${PROXY_METRICS_PORT}"
+    env_file:
+      - .env
+    entrypoint: "proxy"
+    command:
+      - -log=debug
+    logging:
+      options:
+        max-size: "5g"
