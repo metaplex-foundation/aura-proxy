@@ -36,8 +36,8 @@ func (p *proxy) serviceStatusHandler(c echo.Context) error {
 	})
 }
 
-func (p *proxy) initProxyHandlers(tokenChecker *middlewares.TokenChecker) {
-	apiTokenCheckerMiddleware := middlewares.APITokenCheckerMiddleware(tokenChecker)
+func (p *proxy) initProxyHandlers() {
+	//apiTokenCheckerMiddleware := middlewares.APITokenCheckerMiddleware(tokenChecker)
 	rateLimiterMiddleware := echoUtil.NewRateLimiter(func(c echo.Context) bool {
 		// CustomContext must be inited before
 		cc := c.(*echoUtil.CustomContext) //nolint:errcheck
@@ -45,7 +45,7 @@ func (p *proxy) initProxyHandlers(tokenChecker *middlewares.TokenChecker) {
 	})
 
 	proxyMiddlewares := []echo.MiddlewareFunc{
-		apiTokenCheckerMiddleware,
+		//apiTokenCheckerMiddleware,
 		rateLimiterMiddleware,
 		echoUtil.RequestTimeoutMiddleware(func(c echo.Context) bool { return c.IsWebSocket() }),
 		middlewares.StreamRateLimitMiddleware(func(c echo.Context) bool { return !c.IsWebSocket() }), // WS rate limiter

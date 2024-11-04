@@ -13,8 +13,7 @@ import (
 
 var BlockMethodsParamsRPCErr = types.NewRPCError(solanaTypes.InvalidParamsErrCode, "`params` should have at least 1 argument(s)", nil)
 
-func (*solanaAdapter) PrepareGetReq(*echoUtil.CustomContext) {}
-func (s *solanaAdapter) PreparePostReq(c *echoUtil.CustomContext) *types.RPCResponse {
+func (s *Adapter) PreparePostReq(c *echoUtil.CustomContext) *types.RPCResponse {
 	cp := util.NewRuntimeCheckpoint("solanaAdapter.PreparePostReq")
 
 	parsedReqs, arrayRequested, rpcErrResponse := transport.ParseJSONRPCRequestBody(c.GetReqBody, s.GetAvailableMethods(), false)

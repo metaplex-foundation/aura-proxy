@@ -65,7 +65,7 @@ func init() {
 		"httpResponsesTotal",
 		"http_responses_total",
 		"",
-		[]string{targetTypeArg},
+		[]string{targetTypeArg, methodMetricArg, successArg, targetTypeArg},
 	))
 	initMetric(&metrics.partnersNodeUsage, newCounterVec(
 		"partnersNodeUsage",
@@ -85,14 +85,14 @@ func init() {
 		"executionTime",
 		"execution_time",
 		"total request execution time",
-		nil,
+		basicArgs,
 		[]float64{1, 5, 10, 25, 50, 100, 500, 800, 1000, 2000, 4000, 8000, 10000, 15000, 20000, 30000, 50000, 100000, 200000},
 	))
 	initMetric(&metrics.nodeResponseTime, newHistogram(
 		"nodeResponseTime",
 		"node_response_time",
 		"the time it took to fetch data from node",
-		nil,
+		basicArgs,
 		[]float64{1, 5, 10, 25, 50, 100, 500, 800, 1000, 2000, 4000, 8000, 10000, 15000, 20000, 30000, 50000, 100000, 200000},
 	))
 	initMetric(&metrics.nodeAttempts, newHistogram(

@@ -20,6 +20,7 @@ import (
 	"aura-proxy/internal/pkg/log"
 	"aura-proxy/internal/pkg/metrics"
 	echoUtil "aura-proxy/internal/pkg/util/echo"
+	"aura-proxy/internal/proxy/chains/solana"
 	"aura-proxy/internal/proxy/config"
 	"aura-proxy/internal/proxy/middlewares"
 )
@@ -54,10 +55,10 @@ type proxy struct {
 
 type Adapter interface {
 	GetName() string
+	GetHostNames() []string
 	GetAvailableMethods() map[string]uint // method name / cost
 	ProxyPostRequest(c *echoUtil.CustomContext) ([]byte, int, error)
 	ProxyWSRequest(c echo.Context) error
-	PrepareGetReq(c *echoUtil.CustomContext)
 	PreparePostReq(c *echoUtil.CustomContext) *types.RPCResponse
 }
 
@@ -93,11 +94,11 @@ func NewProxy(cfg config.Config) (p *proxy, err error) { //nolint:gocritic
 		waitGroup:                 wg,
 		ctx:                       ctx,
 		ctxCancel:                 cancelFunc,
-		adapters:                  make(map[string]Adapter),
 		statsCollector:            statCollector,
 		detailedRequestsCollector: detailedRequestsCollector,
 		serviceName:               fmt.Sprintf("%s-%s", cfg.Service.Name, cfg.Service.Level),
 		requestCounter:            NewRequestCounter(ctx, wg, auraAPI),
+		adapters:                  make(map[string]Adapter),
 	}
 	if cfg.Proxy.CertFile != "" {
 		p.certData, err = os.ReadFile(cfg.Proxy.CertFile)
@@ -106,30 +107,30 @@ func NewProxy(cfg config.Config) (p *proxy, err error) { //nolint:gocritic
 		}
 	}
 
-	p.initProxyServer()
-	err = p.initAdapters(cfg, auraAPI)
+	err = p.initAdapters(&cfg, auraAPI)
 	if err != nil {
 		return nil, fmt.Errorf("initAdapters: %s", err)
 	}
+	p.initProxyServer()
+	p.initProxyHandlers()
 
 	// load token to CustomContext. CustomContext must be inited before
-	tokenChecker, err := middlewares.NewTokenChecker(p.ctx, auraAPI)
-	if err != nil {
-		return nil, fmt.Errorf("NewTokenChecker: %s", err)
-	}
-	p.initProxyHandlers(tokenChecker)
+	//tokenChecker, err := middlewares.NewTokenChecker(p.ctx, auraAPI)
+	//if err != nil {
+	//	return nil, fmt.Errorf("NewTokenChecker: %s", err)
+	//}
 
 	return p, nil
 }
 
-func (p *proxy) initAdapters(cfg config.Config, auraAPI proto.AuraClient) error { //nolint:gocritic
-	//solanaAdapter, err := solana.NewSolanaAdapter(p.ctx, auraAPI, cfg.Proxy.Solana, cfg.Proxy.Solana.GetDefaultURL(cfg.Proxy.Hostname))
-	//if err != nil {
-	//	return fmt.Errorf("NewSolanaAdapter: %s", err)
-	//}
-	//for _, n := range solanaAdapter.GetHostNames() {
-	//	p.adapters[n] = solanaAdapter
-	//}
+func (p *proxy) initAdapters(cfg *config.Config, auraAPI proto.AuraClient) error { //nolint:gocritic
+	solanaAdapter, err := solana.NewSolanaAdapter(auraAPI, &cfg.Proxy.Solana, cfg.Proxy.IsMainnet)
+	if err != nil {
+		return fmt.Errorf("NewSolanaAdapter: %s", err)
+	}
+	for _, n := range solanaAdapter.GetHostNames() {
+		p.adapters[n] = solanaAdapter
+	}
 
 	return nil
 }

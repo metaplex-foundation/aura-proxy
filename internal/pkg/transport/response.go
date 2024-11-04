@@ -7,8 +7,7 @@ import (
 	"aura-proxy/internal/pkg/util/echo"
 )
 
-func ResponsePostHandling(c *echo.CustomContext, err error, target, targetType string, i int, responseTimeMs int64) {
-	c.SetProxyEndpoint(target)
+func ResponsePostHandling(c *echo.CustomContext, err error, targetType string, i int, responseTimeMs int64) {
 	c.SetTargetType(targetType)
 	c.SetProxyAttempts(i)
 

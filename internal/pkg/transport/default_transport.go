@@ -11,11 +11,11 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	"aura-proxy/internal/pkg/configtypes"
+	"aura-proxy/internal/pkg/util"
 	"aura-proxy/internal/pkg/util/balancer"
 	echoUtil "aura-proxy/internal/pkg/util/echo"
 )
-
-const FromConfigTargetType = "from_config"
 
 type (
 	ProxyTransport struct {
@@ -25,22 +25,12 @@ type (
 	}
 )
 
-func (p *ProxyTransport) SendRequest(c *echoUtil.CustomContext, reqType string) (respBody []byte, statusCode int, err error) {
-	startTime := time.Now()
-
-	u := p.targets.GetNext()
-	if additionalPath := p.getRestPath(c); additionalPath != "" {
-		var sb strings.Builder
-		sb.WriteString(u)              //nolint:revive
-		sb.WriteString(additionalPath) //nolint:revive
-		u = sb.String()
+func NewDefaultProxyTransport(cfg configtypes.Chain) *ProxyTransport {
+	return &ProxyTransport{
+		httpClient: &http.Client{Timeout: echoUtil.APIWriteTimeout - time.Second},
+		targets:    balancer.NewRoundRobin(util.Map(cfg.Hosts, func(t configtypes.WrappedURL) string { return t.String() })),
+		wsTargets:  balancer.NewRoundRobin(util.Map(cfg.WSHosts, func(t configtypes.WrappedURL) *url.URL { return t.ToURLPtr() })),
 	}
-
-	respBody, statusCode, err = MakeHTTPRequest(c, p.httpClient, reqType, u, true)
-	// hide target url in headers
-	ResponsePostHandling(c, err, "", FromConfigTargetType, 1, time.Since(startTime).Milliseconds())
-
-	return respBody, statusCode, err
 }
 
 func (p *ProxyTransport) DefaultProxyWS(c echo.Context) (err error) {

@@ -52,12 +52,12 @@ func (p *CNFTTransport) canHandle(methods []string) bool {
 	return true
 }
 
-func (p *CNFTTransport) selectTargetAndSendReq(c *echoUtil.CustomContext) (respBody []byte, statusCode int, targetName string, err error) {
+func (p *CNFTTransport) selectTargetAndSendReq(c *echoUtil.CustomContext) (respBody []byte, statusCode int, err error) {
 	if p.auraTargets.IsAvailable() {
 		namedTarget := p.auraTargets.GetNext()
 		respBody, statusCode, err = transport.MakeHTTPRequest(c, p.httpClient, http.MethodPost, namedTarget.target, false)
 		if err == nil {
-			return respBody, statusCode, namedTarget.name, nil
+			return respBody, statusCode, nil
 		}
 	}
 
@@ -70,9 +70,8 @@ func (p *CNFTTransport) selectTargetAndSendReq(c *echoUtil.CustomContext) (respB
 func (p *CNFTTransport) SendRequest(c *echoUtil.CustomContext) (respBody []byte, statusCode int, err error) {
 	startTime := time.Now()
 
-	var targetName string
-	respBody, statusCode, targetName, err = p.selectTargetAndSendReq(c)
-	transport.ResponsePostHandling(c, err, targetName, p.targetType, 1, time.Since(startTime).Milliseconds())
+	respBody, statusCode, err = p.selectTargetAndSendReq(c)
+	transport.ResponsePostHandling(c, err, p.targetType, 1, time.Since(startTime).Milliseconds())
 
 	return respBody, statusCode, err
 }

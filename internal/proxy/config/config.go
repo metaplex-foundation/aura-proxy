@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 
+	"aura-proxy/internal/pkg/chains"
 	"aura-proxy/internal/pkg/configtypes"
 )
 
@@ -12,7 +13,7 @@ type Config struct {
 }
 
 func (c Config) Validate() error { //nolint:gocritic
-	if err := c.Proxy.Validate(); err != nil {
+	if err := c.Proxy.Validate(chains.PossibleChainsMethods); err != nil {
 		return fmt.Errorf("proxy: %s", err)
 	}
 
