@@ -22,8 +22,6 @@ type (
 		slotAmount       int64
 
 		mx sync.RWMutex
-
-		isAlive bool
 	}
 
 	targetRestriction struct {

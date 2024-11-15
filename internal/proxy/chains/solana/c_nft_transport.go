@@ -14,29 +14,23 @@ import (
 type (
 	CNFTTransport struct {
 		httpClient  *http.Client
-		targets     *balancer.RoundRobin[string]
-		auraTargets *balancer.RoundRobin[targetWithName]
+		auraTargets *balancer.RoundRobin[string]
 		methodList  map[string]uint
 		targetType  string
-	}
-	targetWithName struct {
-		name   string
-		target string
 	}
 )
 
 func NewCNFTransport(hosts []configtypes.WrappedURL, targetType string, methodList map[string]uint) *CNFTTransport {
 	return &CNFTTransport{
-		httpClient: &http.Client{Timeout: echoUtil.APIWriteTimeout - time.Second},
-		targets:    balancer.NewRoundRobin(util.Map(hosts, func(t configtypes.WrappedURL) string { return t.String() })),
-		//auraTargets: balancer.NewRoundRobin(util.Map(auraTargets, func(t configtypes.WrappedURL) string { return t.String() })),
-		targetType: targetType,
-		methodList: methodList,
+		httpClient:  &http.Client{Timeout: echoUtil.APIWriteTimeout - time.Second},
+		auraTargets: balancer.NewRoundRobin(util.Map(hosts, func(t configtypes.WrappedURL) string { return t.String() })),
+		targetType:  targetType,
+		methodList:  methodList,
 	}
 }
 
 func (p *CNFTTransport) isAvailable() bool {
-	return p.targets.IsAvailable()
+	return p.auraTargets.IsAvailable()
 }
 func (p *CNFTTransport) canHandle(methods []string) bool {
 	if len(methods) == 0 {
@@ -53,17 +47,21 @@ func (p *CNFTTransport) canHandle(methods []string) bool {
 }
 
 func (p *CNFTTransport) selectTargetAndSendReq(c *echoUtil.CustomContext) (respBody []byte, statusCode int, err error) {
-	if p.auraTargets.IsAvailable() {
-		namedTarget := p.auraTargets.GetNext()
-		respBody, statusCode, err = transport.MakeHTTPRequest(c, p.httpClient, http.MethodPost, namedTarget.target, false)
+	availableAuraTries := p.auraTargets.GetTargetsCount()
+	counter := p.auraTargets.GetCounter()
+	for {
+		if availableAuraTries <= 0 {
+			break
+		}
+		target := p.auraTargets.GetByCounter(counter)
+		p.auraTargets.IncCounter()
+		respBody, statusCode, err = transport.MakeHTTPRequest(c, p.httpClient, http.MethodPost, target, false)
 		if err == nil {
 			return respBody, statusCode, nil
 		}
+		counter++
+		availableAuraTries--
 	}
-
-	// failover
-	target := p.targets.GetNext()
-	respBody, statusCode, err = transport.MakeHTTPRequest(c, p.httpClient, http.MethodPost, target, false)
 	return
 }
 

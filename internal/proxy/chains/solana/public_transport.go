@@ -197,9 +197,10 @@ outerLoop:
 			err = echo.NewHTTPError(http.StatusServiceUnavailable, util.ExtraNodeNoAvailableTargetsErrorResponse)
 		default:
 			ptc.c.SetRPCErrors([]int{util.ExtraNodeAttemptsExceededErrorResponse.Error.Code})
-			err = echo.NewHTTPError(http.StatusInternalServerError, util.ExtraNodeAttemptsExceededErrorResponse)
+			err = echo.NewHTTPError(http.StatusInternalServerError, util.ExtraNodeNoAvailableTargetsErrorResponse)
 		}
 	}
+	log.Logger.Proxy.Infof("Request sent to: %s", target.provider)
 
 	targetType := publicRPCTargetType
 	if target != nil {
