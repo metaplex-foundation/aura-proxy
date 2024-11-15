@@ -1,0 +1,144 @@
+package transport
+
+import (
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/labstack/echo/v4"
+
+	"aura-proxy/internal/pkg/configtypes"
+	"aura-proxy/internal/pkg/util"
+	"aura-proxy/internal/pkg/util/balancer"
+	echoUtil "aura-proxy/internal/pkg/util/echo"
+)
+
+type (
+	ProxyTransport struct {
+		httpClient *http.Client
+		targets    *balancer.RoundRobin[string]
+		wsTargets  *balancer.RoundRobin[*url.URL]
+	}
+)
+
+func NewDefaultProxyTransport(cfg configtypes.Chain) *ProxyTransport {
+	return &ProxyTransport{
+		httpClient: &http.Client{Timeout: echoUtil.APIWriteTimeout - time.Second},
+		targets:    balancer.NewRoundRobin(util.Map(cfg.Hosts, func(t configtypes.WrappedURL) string { return t.String() })),
+		wsTargets:  balancer.NewRoundRobin(util.Map(cfg.WSHosts, func(t configtypes.WrappedURL) *url.URL { return t.ToURLPtr() })),
+	}
+}
+
+func (p *ProxyTransport) DefaultProxyWS(c echo.Context) (err error) {
+	target := p.wsTargets.GetNext()
+	if target == nil {
+		return errors.New("empty target")
+	}
+
+	c.Request().Host = target.Host
+	c.Request().URL = &url.URL{}
+	if additionalPath := p.getRestPath(c); additionalPath != "" {
+		c.Request().URL, err = url.Parse(additionalPath)
+		if err != nil {
+			return fmt.Errorf("Parse: %s", err)
+		}
+	}
+
+	reverseProxy := &httputil.ReverseProxy{Director: func(req *http.Request) { rewriteRequestURL(req, target) }}
+	reverseProxy.ServeHTTP(c.Response(), c.Request())
+
+	return nil
+}
+
+func (p *ProxyTransport) ProxySSE(c echo.Context) (err error) {
+	target := p.wsTargets.GetNext()
+	if target == nil {
+		return errors.New("empty target")
+	}
+
+	c.Request().Host = target.Host
+	if additionalPath := p.getRestPath(c); additionalPath != "" {
+		c.Request().URL, err = url.Parse(additionalPath)
+		if err != nil {
+			return fmt.Errorf("Parse: %s", err)
+		}
+	} else {
+		c.Request().URL = &url.URL{}
+	}
+
+	reverseProxy := &httputil.ReverseProxy{Director: func(req *http.Request) { rewriteRequestURL(req, target) }}
+	reverseProxy.ServeHTTP(c.Response(), c.Request())
+
+	return nil
+}
+func rewriteRequestURL(req *http.Request, target *url.URL) {
+	targetQuery := target.RawQuery
+	req.URL.Scheme = target.Scheme
+	req.URL.Host = target.Host
+	req.URL.Path, req.URL.RawPath = joinURLPath(target, req.URL)
+	if targetQuery == "" || req.URL.RawQuery == "" {
+		req.URL.RawQuery = targetQuery + req.URL.RawQuery
+	} else {
+		req.URL.RawQuery = targetQuery + "&" + req.URL.RawQuery
+	}
+}
+
+func joinURLPath(a, b *url.URL) (path, rawpath string) {
+	if a.RawPath == "" && b.RawPath == "" {
+		return singleJoiningSlash(a.Path, b.Path), ""
+	}
+	// Same as singleJoiningSlash, but uses EscapedPath to determine
+	// whether a slash should be added
+	apath := a.EscapedPath()
+	bpath := b.EscapedPath()
+
+	aslash := strings.HasSuffix(apath, "/")
+	bslash := strings.HasPrefix(bpath, "/")
+
+	if bpath == "" {
+		return a.Path, apath
+	}
+
+	switch {
+	case aslash && bslash:
+		return a.Path + b.Path[1:], apath + bpath[1:]
+	case !aslash && !bslash:
+		return a.Path + "/" + b.Path, apath + "/" + bpath //nolint:revive
+	}
+	return a.Path + b.Path, apath + bpath
+}
+func singleJoiningSlash(a, b string) string {
+	if b == "" {
+		return a
+	}
+	aslash := strings.HasSuffix(a, "/")
+	bslash := strings.HasPrefix(b, "/")
+	switch {
+	case aslash && bslash:
+		return a + b[1:]
+	case !aslash && !bslash:
+		return a + "/" + b
+	}
+	return a + b
+}
+
+func (*ProxyTransport) getRestPath(c echo.Context) string {
+	var u strings.Builder
+	restPath := c.Param(echoUtil.RestPathParamName)
+	if restPath != "" {
+		u.WriteByte('/')        //nolint:revive
+		u.WriteString(restPath) //nolint:revive
+	} else if strings.HasSuffix(c.Path(), "/") { // route /:token/
+		u.WriteByte('/') //nolint:revive
+	}
+	if c.QueryString() != "" {
+		u.WriteByte('?')               //nolint:revive
+		u.WriteString(c.QueryString()) //nolint:revive
+	}
+
+	return u.String()
+}
