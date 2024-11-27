@@ -73,32 +73,32 @@ func NewProxy(cfg config.Config) (p *proxy, err error) { //nolint:gocritic
 		}
 	}()
 
-	auraAPI, err := proto.NewClient(cfg.Proxy.AuraGRPCHost)
-	if err != nil {
-		return nil, fmt.Errorf("auraAPI NewClient: %s", err)
-	}
-	statCollector, err := collector.NewCollector[*proto.Stat](ctx, collectorInterval, auraAPI)
-	if err != nil {
-		return nil, fmt.Errorf("NewCollector: %s", err)
-	}
-	detailedRequestsCollector, err := collector.NewCollector[*proto.DetailedRequest](ctx, collectorInterval, auraAPI)
-	if err != nil {
-		return nil, fmt.Errorf("NewCollector: %s", err)
-	}
+	//auraAPI, err := proto.NewClient(cfg.Proxy.AuraGRPCHost)
+	//if err != nil {
+	//	return nil, fmt.Errorf("auraAPI NewClient: %s", err)
+	//}
+	//statCollector, err := collector.NewCollector[*proto.Stat](ctx, collectorInterval, auraAPI)
+	//if err != nil {
+	//	return nil, fmt.Errorf("NewCollector: %s", err)
+	//}
+	//detailedRequestsCollector, err := collector.NewCollector[*proto.DetailedRequest](ctx, collectorInterval, auraAPI)
+	//if err != nil {
+	//	return nil, fmt.Errorf("NewCollector: %s", err)
+	//}
 
 	wg := &sync.WaitGroup{}
 	p = &proxy{
-		proxyPort:                 cfg.Proxy.Port,
-		metricsPort:               cfg.Proxy.MetricsPort,
-		metricsServer:             initMetricsServer(),
-		waitGroup:                 wg,
-		ctx:                       ctx,
-		ctxCancel:                 cancelFunc,
-		statsCollector:            statCollector,
-		detailedRequestsCollector: detailedRequestsCollector,
-		serviceName:               fmt.Sprintf("%s-%s", cfg.Service.Name, cfg.Service.Level),
-		requestCounter:            NewRequestCounter(ctx, wg, auraAPI),
-		adapters:                  make(map[string]Adapter),
+		proxyPort:     cfg.Proxy.Port,
+		metricsPort:   cfg.Proxy.MetricsPort,
+		metricsServer: initMetricsServer(),
+		waitGroup:     wg,
+		ctx:           ctx,
+		ctxCancel:     cancelFunc,
+		//statsCollector:            statCollector,
+		//detailedRequestsCollector: detailedRequestsCollector,
+		serviceName: fmt.Sprintf("%s-%s", cfg.Service.Name, cfg.Service.Level),
+		//requestCounter:            NewRequestCounter(ctx, wg, auraAPI),
+		adapters: make(map[string]Adapter),
 	}
 	if cfg.Proxy.CertFile != "" {
 		p.certData, err = os.ReadFile(cfg.Proxy.CertFile)
@@ -107,7 +107,7 @@ func NewProxy(cfg config.Config) (p *proxy, err error) { //nolint:gocritic
 		}
 	}
 
-	err = p.initAdapters(&cfg, auraAPI)
+	err = p.initAdapters(&cfg)
 	if err != nil {
 		return nil, fmt.Errorf("initAdapters: %s", err)
 	}
@@ -123,8 +123,8 @@ func NewProxy(cfg config.Config) (p *proxy, err error) { //nolint:gocritic
 	return p, nil
 }
 
-func (p *proxy) initAdapters(cfg *config.Config, auraAPI proto.AuraClient) error { //nolint:gocritic
-	solanaAdapter, err := solana.NewSolanaAdapter(auraAPI, &cfg.Proxy.Solana, cfg.Proxy.IsMainnet)
+func (p *proxy) initAdapters(cfg *config.Config) error { //nolint:gocritic
+	solanaAdapter, err := solana.NewSolanaAdapter(&cfg.Proxy.Solana, cfg.Proxy.IsMainnet)
 	if err != nil {
 		return fmt.Errorf("NewSolanaAdapter: %s", err)
 	}

@@ -65,7 +65,7 @@ func init() {
 		"httpResponsesTotal",
 		"http_responses_total",
 		"",
-		[]string{targetTypeArg, methodMetricArg, successArg, targetTypeArg},
+		[]string{chainArg, targetTypeArg, methodMetricArg, successArg},
 	))
 	initMetric(&metrics.partnersNodeUsage, newCounterVec(
 		"partnersNodeUsage",

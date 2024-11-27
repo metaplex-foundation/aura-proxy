@@ -50,7 +50,7 @@ func (p *proxy) initProxyHandlers() {
 		echoUtil.RequestTimeoutMiddleware(func(c echo.Context) bool { return c.IsWebSocket() }),
 		middlewares.StreamRateLimitMiddleware(func(c echo.Context) bool { return !c.IsWebSocket() }), // WS rate limiter
 		middlewares.RequestIDMiddleware(),
-		middlewares.NewLoggerMiddleware(p.statsCollector.Add, p.detailedRequestsCollector.Add),
+		//middlewares.NewLoggerMiddleware(p.statsCollector.Add, p.detailedRequestsCollector.Add),
 		middlewares.NewMetricsMiddleware(),
 	}
 	p.router.POST("/", p.ProxyPostRouteHandler, proxyMiddlewares...)

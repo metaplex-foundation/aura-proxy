@@ -137,7 +137,7 @@ outerLoop:
 
 		localTarget := ptc.transport.NextAvailableTarget(reqMethods, reqType, ptc.c)
 		if localTarget == nil { // prevent empty target var for after loop logic
-			break
+			break outerLoop
 		}
 		target = localTarget
 

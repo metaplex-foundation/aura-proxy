@@ -5,7 +5,7 @@ WORKDIR /app
 # used for build sqlite
 RUN apk add --update gcc musl-dev git openssh-client
 
-RUN git config --global url."git@git.github.com:".insteadOf "https://github.com/"
+RUN git config --global url."git@github.com:".insteadOf "https://github.com/"
 RUN go env -w GOPRIVATE=github.com
 
 RUN mkdir ~/.ssh && echo "HOST *" > ~/.ssh/config

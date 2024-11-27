@@ -2,10 +2,10 @@ module aura-proxy
 
 go 1.22
 
-replace github.com/adm-metaex/aura-api => github.com/adm-metaex/aura-api v0.0.0-20241021190740-615281c3f350
+replace github.com/adm-metaex/aura-api => github.com/adm-metaex/aura-api v0.0.1
 
 require (
-	github.com/adm-metaex/aura-api v0.0.0-00010101000000-000000000000
+	github.com/adm-metaex/aura-api v0.0.1
 	github.com/buger/jsonparser v1.1.1
 	github.com/gagliardetto/solana-go v1.11.0
 	github.com/google/uuid v1.6.0
@@ -22,7 +22,7 @@ require (
 )
 
 require (
-	filippo.io/edwards25519 v1.0.0-rc.1 // indirect
+	filippo.io/edwards25519 v1.0.0-rc.1 // indirect; indirectgit config --global --unset url.git@github.com:.insteadof
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blendle/zapdriver v1.3.1 // indirect
