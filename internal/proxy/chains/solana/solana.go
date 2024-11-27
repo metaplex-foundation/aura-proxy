@@ -21,6 +21,7 @@ var (
 		fmt.Sprintf("%s%s", solana.ChainName, util.ProxyBasePath), // TODO: TBD
 		"localhost:8000", // for local tests
 		"node.aura-eclipse.com",
+		"proxy.aura-eclipse.com",
 	}
 )
 
