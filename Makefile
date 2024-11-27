@@ -2,7 +2,7 @@
 
 SHELL := /bin/bash
 
-export APP_NAME=aura-go
+export APP_NAME=aura-proxy-go
 export APP_VERSION=latest
 
 build:
@@ -11,7 +11,7 @@ build:
 	@docker build -f Dockerfile --ssh default . -t ${APP_NAME}:${APP_VERSION}
 
 start:
-	@docker-compose up -d
+	@docker compose up -d
 
 stop:
 	@docker-compose stop

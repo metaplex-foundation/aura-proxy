@@ -1,11 +1,9 @@
 package solana
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 
-	"github.com/adm-metaex/aura-api/pkg/proto"
 	"github.com/labstack/echo/v4"
 
 	"aura-proxy/internal/pkg/chains/solana"
@@ -22,23 +20,24 @@ var (
 	chainHosts = []string{
 		fmt.Sprintf("%s%s", solana.ChainName, util.ProxyBasePath), // TODO: TBD
 		"localhost:8000", // for local tests
+		"node.aura-eclipse.com",
 	}
 )
 
 type Adapter struct {
 	publicTransport *publicTransport
 	cNFTTransport   *CNFTTransport
-	auraAPI         proto.AuraClient
+	//auraAPI         proto.AuraClient
 }
 
-func NewSolanaAdapter(auraAPI proto.AuraClient, cfg *configtypes.SolanaConfig, isMainnet bool) (a *Adapter, err error) { //nolint:gocritic
-	if auraAPI == nil {
-		return nil, errors.New("empty auraAPI")
-	}
-	a = &Adapter{
-		auraAPI: auraAPI,
-	}
-
+func NewSolanaAdapter(cfg *configtypes.SolanaConfig, isMainnet bool) (a *Adapter, err error) { //nolint:gocritic
+	//if auraAPI == nil {
+	//	return nil, errors.New("empty auraAPI")
+	//}
+	//a = &Adapter{
+	//	auraAPI: auraAPI,
+	//}
+	a = &Adapter{}
 	err = a.initTransports(cfg, isMainnet)
 	if err != nil {
 		return nil, fmt.Errorf("initTransports: %s", err)

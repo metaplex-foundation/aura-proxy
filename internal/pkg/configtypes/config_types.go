@@ -14,9 +14,8 @@ import (
 // struct field names are used for env variable names. Edit with care
 type (
 	ProxyConfig struct {
-		Hostname     string `envconfig:"HOSTNAME" default:"unspecified" required:"true" split_words:"true"`
 		CertFile     string `required:"false" split_words:"true"`
-		AuraGRPCHost string `required:"true" split_words:"true"`
+		AuraGRPCHost string `required:"false" split_words:"true"`
 
 		Solana SolanaConfig `required:"true" split_words:"true"`
 		Chains Chains       `required:"false" split_words:"true"`
@@ -24,11 +23,11 @@ type (
 		Port        uint64 `required:"true" split_words:"true"`
 		MetricsPort uint64 `required:"false" split_words:"true"`
 
-		IsMainnet bool `required:"true" split_words:"true"`
+		IsMainnet bool `required:"true" default:"true" split_words:"true"`
 	}
 	SolanaConfig struct {
-		DasAPIURL       []WrappedURL `envconfig:"PROXY_SOLANA_DAS_API_URL" required:"false" split_words:"true"`
-		BasicRouteNodes SolanaNodes  `envconfig:"PROXY_SOLANA_BASIC_ROUTE_NODES" required:"false" split_words:"true"`
+		DasAPIURL       []WrappedURL `envconfig:"PROXY_SOLANA_DAS_API_URL" required:"true" split_words:"true"`
+		BasicRouteNodes SolanaNodes  `envconfig:"PROXY_SOLANA_BASIC_ROUTE_NODES" required:"true" split_words:"true"`
 		WSHostURL       []WrappedURL `envconfig:"PROXY_SOLANA_WS_HOST_URL" required:"false" split_words:"true"`
 	}
 )

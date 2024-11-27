@@ -296,8 +296,9 @@ func (c *CustomContext) GetIsPartnerNode() bool {
 }
 
 func (c *CustomContext) GetReqPerSecond() int64 {
+	return 100
 	//if c.userInfo == nil || c.userInfo.GetRequestPerSecond() == 0 {
-	return c.GetTokenType().GetReqPerSecond()
+	//return c.GetTokenType().GetReqPerSecond()
 	//}
 
 	//return c.userInfo.GetRequestPerSecond()
