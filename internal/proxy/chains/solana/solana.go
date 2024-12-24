@@ -19,8 +19,8 @@ const (
 var (
 	chainHosts = []string{
 		fmt.Sprintf("%s%s", solana.ChainName, util.ProxyBasePath), // TODO: TBD
-		"localhost:8000", // for local tests
-		"127.0.0.1:8000", // for local tests
+		"localhost:2011", // for local tests
+		"127.0.0.1:2011", // for local tests
 	}
 )
 

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/adm-metaex/aura-api/pkg/proto"
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -22,7 +21,7 @@ const (
 	durationThreshold = 31 * time.Second
 )
 
-func NewLoggerMiddleware(saveLog func(s *proto.Stat), saveDetailedRequest func(s *proto.DetailedRequest)) echo.MiddlewareFunc {
+func NewLoggerMiddleware(saveLog func(s *proto.Stat)) echo.MiddlewareFunc {
 	return middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		LogStatus:       true,
 		LogMethod:       true,
@@ -43,22 +42,7 @@ func NewLoggerMiddleware(saveLog func(s *proto.Stat), saveDetailedRequest func(s
 			if !cc.IsWebSocket() {
 				saveLog(buildStatStruct(cc.GetReqID(), v.Status, v.Latency.Milliseconds(), endpoint,
 					cc.GetProxyAttempts(), cc.GetProxyResponseTime(), cc.GetReqMethod(), cc.GetRPCError(), v.UserAgent,
-					cc.GetStatsAdditionalData(), cc.GetUserUID(), cc.GetChainName(), cc.GetProjectUUID(), v.ResponseSize, cc.GetTargetType()))
-				saveDetailedRequest(&proto.DetailedRequest{
-					Timestamp:         timestamppb.New(time.Now().UTC()),
-					UserUid:           cc.GetUserUID(),
-					RequestUuid:       cc.GetReqID(),
-					Endpoint:          cc.GetProxyEndpoint(),
-					RpcErrorCode:      strconv.FormatInt(int64(cc.GetRPCError()), 10),
-					UserAgent:         v.UserAgent,
-					RpcMethod:         cc.GetReqMethod(),
-					RpcRequestBody:    cc.GetReqBodyString(),
-					Chain:             cc.GetChainName(),
-					ExecutionTimeMs:   v.Latency.Milliseconds(),
-					Status:            uint32(v.Status),
-					Attempts:          uint32(cc.GetProxyAttempts()),
-					ResponseSizeBytes: v.ResponseSize,
-				})
+					cc.GetStatsAdditionalData(), cc.GetUserInfo().GetUser(), cc.GetChainName(), cc.GetAPIToken(), cc.GetProvider(), v.ResponseSize, cc.GetCreditsUsed(), cc.GetTargetType()))
 			}
 
 			m := cc.GetMetrics()
@@ -82,10 +66,10 @@ func NewLoggerMiddleware(saveLog func(s *proto.Stat), saveDetailedRequest func(s
 }
 
 func buildStatStruct(requestUUID string, statusCode int, latency int64, endpoint string, attempts int, responseTime int64,
-	rpcMethod string, rpcErrorCode int, userAgent, statsAdditionalData, userUID, chainName string, project uuid.UUID, responseSizeBytes int64, targetType string) *proto.Stat {
+	rpcMethod string, rpcErrorCode int, userAgent, statsAdditionalData, userUID, chainName, token, provider string, responseSizeBytes, methodCost int64, targetType string) *proto.Stat {
 	return &proto.Stat{
 		UserUid:           userUID,
-		ProjectUuid:       project.String(),
+		TokenUuid:         token,
 		RequestUuid:       requestUUID,
 		Status:            uint32(statusCode),
 		ExecutionTimeMs:   latency,
@@ -100,5 +84,7 @@ func buildStatStruct(requestUUID string, statusCode int, latency int64, endpoint
 		Chain:             chainName,
 		ResponseSizeBytes: responseSizeBytes,
 		TargetType:        targetType,
+		Provider:          provider,
+		MethodCost:        methodCost,
 	}
 }

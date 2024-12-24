@@ -38,7 +38,7 @@ func APITokenCheckerMiddleware(tokenChecker *TokenChecker) echo.MiddlewareFunc {
 			cc := c.(*echoUtil.CustomContext) //nolint:errcheck
 
 			token := strings.TrimRight(c.Param(echoUtil.TokenParamName), "/")
-			userInfo, err := tokenChecker.CheckToken(c.Request().Context(), token)
+			userInfo, err := tokenChecker.CheckToken(cc, token)
 			cc.GetMetrics().AddCheckpoint(cp)
 			if err != nil {
 				if errors.Is(err, ErrEmptyAPIToken) {
@@ -53,13 +53,7 @@ func APITokenCheckerMiddleware(tokenChecker *TokenChecker) echo.MiddlewareFunc {
 			}
 			// load userUID info to custom context
 			cc.SetUserInfo(userInfo)
-			tokenChecker.subscriptionListMx.RLock()
-			subcription, ok := tokenChecker.subscriptionList[userInfo.GetSubscriptionId()]
-			tokenChecker.subscriptionListMx.RUnlock()
-			if !ok {
-				log.Logger.Proxy.Errorf("invalid SubscriptionId: %d", userInfo.GetSubscriptionId())
-			}
-			cc.SetSubscription(subcription)
+			cc.SetAPIToken(token)
 
 			return next(c)
 		}
@@ -102,7 +96,7 @@ func NewTokenChecker(ctx context.Context, auraAPI auraProto.AuraClient) (*TokenC
 	return t, nil
 }
 
-func (t *TokenChecker) CheckToken(ctx context.Context, token string) (userInfo *auraProto.UserWithTokens, err error) {
+func (t *TokenChecker) CheckToken(cc *echoUtil.CustomContext, token string) (userInfo *auraProto.UserWithTokens, err error) {
 	if token == "" {
 		return userInfo, ErrEmptyAPIToken
 	}
@@ -113,7 +107,7 @@ func (t *TokenChecker) CheckToken(ctx context.Context, token string) (userInfo *
 		return userInfo, fmt.Errorf("uuid.Parse(%s): %s", token, err)
 	}
 
-	user, err := t.getUserFromAPICached(ctx, token)
+	user, err := t.getUserFromAPICached(cc, token)
 	if err != nil {
 		return userInfo, fmt.Errorf("getUserFromAPICached: %w", err)
 	}
@@ -139,11 +133,11 @@ func (t *TokenChecker) updateSubscriptionList(ctx context.Context) error {
 	return nil
 }
 
-func (t *TokenChecker) getUserFromAPICached(ctx context.Context, token string) (user *auraProto.GetUserInfoResp, err error) {
+func (t *TokenChecker) getUserFromAPICached(cc *echoUtil.CustomContext, token string) (user *auraProto.GetUserInfoResp, err error) {
 	cachedUserInterface, ok := t.userCache.Get(token)
 	user, _ = cachedUserInterface.(*auraProto.GetUserInfoResp)
 	if !ok || (user.GetUser().GetSubscriptionEndsOn() != nil && time.Now().After(user.GetUser().GetSubscriptionEndsOn().AsTime())) {
-		user, err = t.auraAPI.GetUserInfo(ctx, &auraProto.GetUserInfoReq{ApiToken: token})
+		user, err = t.auraAPI.GetUserInfo(cc.Request().Context(), &auraProto.GetUserInfoReq{ApiToken: token})
 		if err != nil {
 			return user, fmt.Errorf("GetUserInfo: %s", err)
 		}
@@ -155,8 +149,22 @@ func (t *TokenChecker) getUserFromAPICached(ctx context.Context, token string) (
 	if user.GetUser().GetSubscriptionEndsOn() != nil && time.Now().After(user.GetUser().GetSubscriptionEndsOn().AsTime()) {
 		return nil, errors.New("no active subscription")
 	}
-	if user.GetUser().GetMplxBalance() <= 0 {
-		return nil, ErrCreditsExhausted
+	t.subscriptionListMx.RLock()
+	subcription, ok := t.subscriptionList[user.GetUser().GetSubscriptionId()]
+	t.subscriptionListMx.RUnlock()
+	if !ok {
+		log.Logger.Proxy.Errorf("invalid SubscriptionId: %d", user.GetUser().GetSubscriptionId())
+	}
+	cc.SetSubscription(subcription)
+
+	credits := int64(len(cc.GetReqMethods())) * cc.GetReqCost()
+	if user.GetUser().GetMplxBalance() < credits {
+		return user, ErrCreditsExhausted
+	}
+	cc.SetCreditsUsed(credits)
+	user.User.MplxBalance -= credits
+	for _, tkn := range user.GetUser().GetTokens() {
+		t.userCache.Set(tkn, user, userInfoCacheInterval)
 	}
 
 	return

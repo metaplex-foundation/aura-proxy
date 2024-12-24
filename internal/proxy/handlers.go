@@ -9,6 +9,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"aura-proxy/internal/pkg/chains/solana"
+	"aura-proxy/internal/pkg/metrics"
 	"aura-proxy/internal/pkg/transport"
 	"aura-proxy/internal/pkg/util"
 	echoUtil "aura-proxy/internal/pkg/util/echo"
@@ -47,19 +48,41 @@ func (p *proxy) initProxyHandlers(tokenChecker *middlewares.TokenChecker) {
 	})
 
 	proxyMiddlewares := []echo.MiddlewareFunc{
-		apiTokenCheckerMiddleware,
 		p.RequestPrepareMiddleware(),
+		apiTokenCheckerMiddleware,
 		rateLimiterMiddleware,
 		echoUtil.RequestTimeoutMiddleware(func(c echo.Context) bool { return c.IsWebSocket() }),
 		middlewares.StreamRateLimitMiddleware(func(c echo.Context) bool { return !c.IsWebSocket() }), // WS rate limiter
 		middlewares.RequestIDMiddleware(),
 		// post-processing middlewares
-		middlewares.NewLoggerMiddleware(p.statsCollector.Add, p.detailedRequestsCollector.Add),
+		middlewares.NewLoggerMiddleware(p.statsCollector.Add),
 		middlewares.NewMetricsMiddleware(),
 	}
 	p.router.POST("/", p.ProxyPostRouteHandler, proxyMiddlewares...)
 	p.router.POST("/:token", p.ProxyPostRouteHandler, proxyMiddlewares...)
 	p.router.GET("/service-status", p.serviceStatusHandler)
+	p.router.GET("/", p.ProxyGetRouteHandler, proxyMiddlewares...)
+	p.router.GET(echoUtil.ProxyPathWithToken, p.ProxyGetRouteHandler, proxyMiddlewares...)
+	p.router.GET("/:token/", p.ProxyGetRouteHandler, proxyMiddlewares...)
+}
+
+func (p *proxy) ProxyGetRouteHandler(c echo.Context) error {
+	cp := util.NewRuntimeCheckpoint("ProxyGetRouteHandler")
+	cc := c.(*echoUtil.CustomContext) //nolint:errcheck
+	defer cc.GetMetrics().AddCheckpoint(cp)
+
+	adapter, ok := p.adapters[c.Request().Host]
+	if !ok {
+		return echo.NewHTTPError(http.StatusBadRequest, util.ErrChainNotSupported)
+	}
+
+	// common prepare
+	transport.PrepareGetRequest(cc, adapter.GetName())
+	if c.IsWebSocket() {
+		metrics.IncWebsocketConnections(cc.GetChainName())
+		return adapter.ProxyWSRequest(c)
+	}
+	return echo.NewHTTPError(http.StatusMethodNotAllowed)
 }
 
 func (p *proxy) ProxyPostRouteHandler(c echo.Context) error {
@@ -76,7 +99,7 @@ func (p *proxy) ProxyPostRouteHandler(c echo.Context) error {
 	if err != nil {
 		return transport.HandleError(err)
 	}
-	p.requestCounter.IncUserRequests(cc.GetUserInfo(), cc.GetCreditsUsed())
+	p.requestCounter.IncUserRequests(cc.GetUserInfo(), cc.GetCreditsUsed(), cc.GetChainName(), cc.GetAPIToken())
 
 	setServiceHeaders(cc.Response().Header(), cc)
 
@@ -126,12 +149,9 @@ func (p *proxy) RequestPrepareMiddleware() echo.MiddlewareFunc {
 				}
 			}
 			cc.SetIsDASRequest(isDasRequest)
-
-			credits := int64(len(cc.GetReqMethods())) * cc.GetReqCost()
-			if cc.GetUserInfo().GetMplxBalance() < credits {
-				return echo.NewHTTPError(http.StatusUnauthorized, middlewares.ErrCreditsExhausted.Error())
+			if isGPARequest {
+				cc.SetChainName(solana.GetProgramAccounts)
 			}
-			cc.SetCreditsUsed(credits)
 
 			return next(c)
 		}

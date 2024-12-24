@@ -19,7 +19,7 @@ const (
 
 type (
 	collectorPossibleTypes interface {
-		*auraProto.Stat | *auraProto.DetailedRequest
+		*auraProto.Stat
 	}
 	Collector[T collectorPossibleTypes] struct {
 		auraAPI       auraProto.AuraClient
@@ -70,9 +70,6 @@ func (c *Collector[T]) flushData(ctx context.Context) error {
 	case []*auraProto.Stat:
 		caller = "BatchInsertStats"
 		_, err = c.auraAPI.BatchInsertStats(ctx, &auraProto.BatchInsertStatsReq{Stats: e})
-	case []*auraProto.DetailedRequest:
-		caller = "BatchInsertDetailedRequests"
-		_, err = c.auraAPI.BatchInsertDetailedRequests(ctx, &auraProto.BatchInsertDetailedRequestsReq{Req: e})
 	default:
 		return fmt.Errorf("unknow type to handle: %T", e)
 	}

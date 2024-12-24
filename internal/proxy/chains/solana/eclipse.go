@@ -42,7 +42,7 @@ func (*EclipseAdapter) GetAvailableMethods() map[string]uint {
 	return solana.MethodList
 }
 func (*EclipseAdapter) GetHostNames() []string {
-	return chainHosts
+	return eclipseChainHosts
 }
 
 func (s *EclipseAdapter) ProxyWSRequest(c echo.Context) error {

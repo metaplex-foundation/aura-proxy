@@ -16,14 +16,14 @@ const flushInterval = time.Second * 30
 type RequestCounter struct {
 	wg       *sync.WaitGroup
 	auraAPI  auraProto.AuraClient
-	counters map[string]int64
+	counters map[string]map[string]map[string]int64
 	mx       sync.Mutex
 }
 
 func NewRequestCounter(ctx context.Context, wg *sync.WaitGroup, auraAPI auraProto.AuraClient) (r *RequestCounter) {
 	r = &RequestCounter{
 		wg:       wg,
-		counters: make(map[string]int64), // providerID/reqCount
+		counters: make(map[string]map[string]map[string]int64), // providerID/chain/token/reqCount
 		mx:       sync.Mutex{},
 		auraAPI:  auraAPI,
 	}
@@ -41,7 +41,7 @@ func NewRequestCounter(ctx context.Context, wg *sync.WaitGroup, auraAPI auraProt
 	return r
 }
 
-func (r *RequestCounter) IncUserRequests(user *auraProto.UserWithTokens, currentReqCount int64) {
+func (r *RequestCounter) IncUserRequests(user *auraProto.UserWithTokens, currentReqCount int64, chain, token string) {
 	if user == nil || currentReqCount == 0 {
 		return
 	}
@@ -52,14 +52,20 @@ func (r *RequestCounter) IncUserRequests(user *auraProto.UserWithTokens, current
 	}
 
 	r.mx.Lock()
-	r.counters[userID] += currentReqCount
+	if r.counters[userID] == nil {
+		r.counters[userID] = make(map[string]map[string]int64)
+	}
+	if r.counters[userID][chain] == nil {
+		r.counters[userID][chain] = make(map[string]int64)
+	}
+	r.counters[userID][chain][token] += currentReqCount
 	r.mx.Unlock()
 }
 
 func (r *RequestCounter) flush() (err error) {
 	r.mx.Lock()
 	counters := r.counters
-	r.counters = make(map[string]int64)
+	r.counters = make(map[string]map[string]map[string]int64)
 	r.mx.Unlock()
 
 	if len(counters) == 0 {
@@ -67,9 +73,10 @@ func (r *RequestCounter) flush() (err error) {
 	}
 
 	timeNow := time.Now()
+	protoStruct := mapCountersToProto(counters)
 	for i := 0; i < 10; i++ {
 		// context background used for prevent query cancellation
-		_, err = r.auraAPI.IncreaseUserRequests(context.Background(), &auraProto.IncreaseUserRequestsReq{Reqs: counters})
+		_, err = r.auraAPI.IncreaseUserRequests(context.Background(), protoStruct)
 		if err != nil {
 			log.Logger.Proxy.Errorf("RequestCounter.flush (attempt %d): IncreaseUserRequests: %s", i, err)
 			continue
@@ -80,4 +87,28 @@ func (r *RequestCounter) flush() (err error) {
 	}
 
 	return err
+}
+
+func mapCountersToProto(counters map[string]map[string]map[string]int64) *auraProto.IncreaseUserRequestsReq {
+	protoReq := &auraProto.IncreaseUserRequestsReq{
+		Reqs: make(map[string]*auraProto.UserRequestsByChain),
+	}
+
+	for user, chains := range counters {
+		userRequestsByChain := &auraProto.UserRequestsByChain{
+			Reqs: make(map[string]*auraProto.UserRequestsByToken),
+		}
+		for chain, tokens := range chains {
+			userRequestsByToken := &auraProto.UserRequestsByToken{
+				Reqs: make(map[string]int64),
+			}
+			for token, count := range tokens {
+				userRequestsByToken.Reqs[token] = count
+			}
+			userRequestsByChain.Reqs[chain] = userRequestsByToken
+		}
+		protoReq.Reqs[user] = userRequestsByChain
+	}
+
+	return protoReq
 }

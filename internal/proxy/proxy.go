@@ -41,10 +41,9 @@ type proxy struct {
 	router        *echo.Echo
 	metricsServer *echo.Echo
 
-	statsCollector            *collector.Collector[*auraProto.Stat]
-	detailedRequestsCollector *collector.Collector[*auraProto.DetailedRequest]
-	requestCounter            *RequestCounter
-	serviceName               string
+	statsCollector *collector.Collector[*auraProto.Stat]
+	requestCounter *RequestCounter
+	serviceName    string
 
 	adapters map[string]Adapter // host
 	certData []byte
@@ -81,24 +80,19 @@ func NewProxy(cfg config.Config) (p *proxy, err error) { //nolint:gocritic
 	if err != nil {
 		return nil, fmt.Errorf("NewCollector: %s", err)
 	}
-	detailedRequestsCollector, err := collector.NewCollector[*auraProto.DetailedRequest](ctx, collectorInterval, auraAPI)
-	if err != nil {
-		return nil, fmt.Errorf("NewCollector: %s", err)
-	}
 
 	wg := &sync.WaitGroup{}
 	p = &proxy{
-		proxyPort:                 cfg.Proxy.Port,
-		metricsPort:               cfg.Proxy.MetricsPort,
-		metricsServer:             initMetricsServer(),
-		waitGroup:                 wg,
-		ctx:                       ctx,
-		ctxCancel:                 cancelFunc,
-		statsCollector:            statCollector,
-		detailedRequestsCollector: detailedRequestsCollector,
-		serviceName:               fmt.Sprintf("%s-%s", cfg.Service.Name, cfg.Service.Level),
-		requestCounter:            NewRequestCounter(ctx, wg, auraAPI),
-		adapters:                  make(map[string]Adapter),
+		proxyPort:      cfg.Proxy.Port,
+		metricsPort:    cfg.Proxy.MetricsPort,
+		metricsServer:  initMetricsServer(),
+		waitGroup:      wg,
+		ctx:            ctx,
+		ctxCancel:      cancelFunc,
+		statsCollector: statCollector,
+		serviceName:    fmt.Sprintf("%s-%s", cfg.Service.Name, cfg.Service.Level),
+		requestCounter: NewRequestCounter(ctx, wg, auraAPI),
+		adapters:       make(map[string]Adapter),
 	}
 	if cfg.Proxy.CertFile != "" {
 		p.certData, err = os.ReadFile(cfg.Proxy.CertFile)

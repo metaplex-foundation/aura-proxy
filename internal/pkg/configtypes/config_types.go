@@ -15,7 +15,7 @@ import (
 type (
 	ProxyConfig struct {
 		CertFile     string `required:"false" split_words:"true"`
-		AuraGRPCHost string `required:"false" split_words:"true"`
+		AuraGRPCHost string `envconfig:"PROXY_AURA_GRPC_HOST" required:"true" split_words:"true"`
 
 		Solana  SolanaConfig `required:"true" split_words:"true"`
 		Eclipse SolanaConfig `required:"false" split_words:"true"`

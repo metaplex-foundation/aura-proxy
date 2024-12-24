@@ -8,7 +8,6 @@ import (
 
 	auraProto "github.com/adm-metaex/aura-api/pkg/proto"
 	"github.com/adm-metaex/aura-api/pkg/types"
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
@@ -30,11 +29,8 @@ type CustomContext struct {
 	targetType          string
 	reqID               string
 	statsAdditionalData string
-	apiToken            struct {
-		token     string
-		tokenType models.TokenType
-	}
-
+	apiToken            string
+	provider            string
 	echo.Context
 
 	userInfo          *auraProto.UserWithTokens
@@ -45,7 +41,6 @@ type CustomContext struct {
 	rpcErrors         []int
 	reqDuration       time.Time
 	reqMethods        []string
-	projectUUID       uuid.UUID
 
 	proxyAttempts     int
 	proxyResponseTime int64
@@ -233,23 +228,15 @@ func (c *CustomContext) SetUserInfo(u *auraProto.UserWithTokens) {
 func (c *CustomContext) GetUserInfo() *auraProto.UserWithTokens {
 	return c.userInfo
 }
-func (c *CustomContext) GetProjectUUID() uuid.UUID {
-	return c.projectUUID
+func (c *CustomContext) GetAPIToken() string {
+	return c.apiToken
+}
+func (c *CustomContext) SetAPIToken(apiToken string) {
+	c.apiToken = apiToken
 }
 
-func (c *CustomContext) SetUserUID(u string, tokenType models.TokenType) {
-	c.apiToken.token = u
-	c.apiToken.tokenType = tokenType
-}
-func (c *CustomContext) GetUserUID() string {
-	return c.apiToken.token
-}
 func (c *CustomContext) GetTokenType() models.TokenType {
-	if c.apiToken.tokenType == "" {
-		return models.DefaultTokenType
-	}
-
-	return c.apiToken.tokenType
+	return models.DefaultTokenType
 }
 
 func (c *CustomContext) SetRPCRequestsParsed(u types.RPCRequests) {
@@ -359,4 +346,11 @@ func (c *CustomContext) SetCreditsUsed(creditsUsed int64) {
 }
 func (c *CustomContext) GetCreditsUsed() int64 {
 	return c.creditsUsed
+}
+
+func (c *CustomContext) SetProvider(provider string) {
+	c.provider = provider
+}
+func (c *CustomContext) GetProvider() string {
+	return c.provider
 }
