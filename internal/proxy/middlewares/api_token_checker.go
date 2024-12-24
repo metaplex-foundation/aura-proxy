@@ -23,7 +23,7 @@ import (
 const (
 	subscriptionsListUpdateInterval = 5 * time.Minute
 	userCacheTTL                    = 10 * time.Minute
-	userInfoCacheInterval           = 10 * time.Minute
+	userInfoCacheInterval           = time.Minute
 )
 
 var (

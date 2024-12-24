@@ -19,7 +19,7 @@ import (
 const (
 	apiIdleTimeout     = time.Minute
 	apiReadTimeout     = 5 * time.Second
-	APIWriteTimeout    = 91 * time.Second
+	APIWriteTimeout    = 121 * time.Second
 	errTimeout         = "Request Timeout"
 	TokenParamName     = "token"     // located in path
 	RestPathParamName  = "rest_path" // located in path
