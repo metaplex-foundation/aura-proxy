@@ -30,7 +30,7 @@ build: format
 	@echo -e "${C}- Application: ${APP}${D}"
 	@echo -e "${C}- Registry: ${REGISTRY}${D}"
 	@echo -e "${C}- Version (tag): ${VERSION}${D}"
-	CGO_ENABLED=0 GOOS=${TARGETOS} go build -a -v -installsuffix cgo ./cmd/api
+	CGO_ENABLED=0 GOOS=${TARGETOS} go build -a -v -installsuffix cgo ./cmd/proxy
 	@echo -e "${G}Application built successfully!${D}"
 
 image:
