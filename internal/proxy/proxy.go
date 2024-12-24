@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/adm-metaex/aura-api/pkg/proto"
+	auraProto "github.com/adm-metaex/aura-api/pkg/proto"
 	"github.com/adm-metaex/aura-api/pkg/types"
 	"github.com/google/uuid"
 	"github.com/labstack/echo-contrib/pprof"
@@ -41,10 +41,9 @@ type proxy struct {
 	router        *echo.Echo
 	metricsServer *echo.Echo
 
-	statsCollector            *collector.Collector[*proto.Stat]
-	detailedRequestsCollector *collector.Collector[*proto.DetailedRequest]
-	requestCounter            *RequestCounter
-	serviceName               string
+	statsCollector *collector.Collector[*auraProto.Stat]
+	requestCounter *RequestCounter
+	serviceName    string
 
 	adapters map[string]Adapter // host
 	certData []byte
@@ -73,32 +72,27 @@ func NewProxy(cfg config.Config) (p *proxy, err error) { //nolint:gocritic
 		}
 	}()
 
-	//auraAPI, err := proto.NewClient(cfg.Proxy.AuraGRPCHost)
-	//if err != nil {
-	//	return nil, fmt.Errorf("auraAPI NewClient: %s", err)
-	//}
-	//statCollector, err := collector.NewCollector[*proto.Stat](ctx, collectorInterval, auraAPI)
-	//if err != nil {
-	//	return nil, fmt.Errorf("NewCollector: %s", err)
-	//}
-	//detailedRequestsCollector, err := collector.NewCollector[*proto.DetailedRequest](ctx, collectorInterval, auraAPI)
-	//if err != nil {
-	//	return nil, fmt.Errorf("NewCollector: %s", err)
-	//}
+	auraAPI, err := auraProto.NewClient(cfg.Proxy.AuraGRPCHost)
+	if err != nil {
+		return nil, fmt.Errorf("auraAPI NewClient: %s", err)
+	}
+	statCollector, err := collector.NewCollector[*auraProto.Stat](ctx, collectorInterval, auraAPI)
+	if err != nil {
+		return nil, fmt.Errorf("NewCollector: %s", err)
+	}
 
 	wg := &sync.WaitGroup{}
 	p = &proxy{
-		proxyPort:     cfg.Proxy.Port,
-		metricsPort:   cfg.Proxy.MetricsPort,
-		metricsServer: initMetricsServer(),
-		waitGroup:     wg,
-		ctx:           ctx,
-		ctxCancel:     cancelFunc,
-		//statsCollector:            statCollector,
-		//detailedRequestsCollector: detailedRequestsCollector,
-		serviceName: fmt.Sprintf("%s-%s", cfg.Service.Name, cfg.Service.Level),
-		//requestCounter:            NewRequestCounter(ctx, wg, auraAPI),
-		adapters: make(map[string]Adapter),
+		proxyPort:      cfg.Proxy.Port,
+		metricsPort:    cfg.Proxy.MetricsPort,
+		metricsServer:  initMetricsServer(),
+		waitGroup:      wg,
+		ctx:            ctx,
+		ctxCancel:      cancelFunc,
+		statsCollector: statCollector,
+		serviceName:    fmt.Sprintf("%s-%s", cfg.Service.Name, cfg.Service.Level),
+		requestCounter: NewRequestCounter(ctx, wg, auraAPI),
+		adapters:       make(map[string]Adapter),
 	}
 	if cfg.Proxy.CertFile != "" {
 		p.certData, err = os.ReadFile(cfg.Proxy.CertFile)
@@ -112,13 +106,13 @@ func NewProxy(cfg config.Config) (p *proxy, err error) { //nolint:gocritic
 		return nil, fmt.Errorf("initAdapters: %s", err)
 	}
 	p.initProxyServer()
-	p.initProxyHandlers()
 
 	// load token to CustomContext. CustomContext must be inited before
-	//tokenChecker, err := middlewares.NewTokenChecker(p.ctx, auraAPI)
-	//if err != nil {
-	//	return nil, fmt.Errorf("NewTokenChecker: %s", err)
-	//}
+	tokenChecker, err := middlewares.NewTokenChecker(p.ctx, auraAPI)
+	if err != nil {
+		return nil, fmt.Errorf("NewTokenChecker: %s", err)
+	}
+	p.initProxyHandlers(tokenChecker)
 
 	return p, nil
 }
@@ -130,6 +124,16 @@ func (p *proxy) initAdapters(cfg *config.Config) error { //nolint:gocritic
 	}
 	for _, n := range solanaAdapter.GetHostNames() {
 		p.adapters[n] = solanaAdapter
+	}
+	// TODO: refactor
+	if len(cfg.Proxy.Eclipse.DasAPIURL) > 0 && len(cfg.Proxy.Eclipse.BasicRouteNodes) > 0 {
+		eclipseAdapter, err := solana.NewEclipseAdapter(&cfg.Proxy.Eclipse, cfg.Proxy.IsMainnet)
+		if err != nil {
+			return fmt.Errorf("NewEclipseAdapter: %s", err)
+		}
+		for _, n := range eclipseAdapter.GetHostNames() {
+			p.adapters[n] = eclipseAdapter
+		}
 	}
 
 	return nil

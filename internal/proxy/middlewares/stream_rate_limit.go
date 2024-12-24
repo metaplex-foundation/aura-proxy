@@ -33,11 +33,8 @@ func StreamRateLimitMiddleware(skipper middleware.Skipper) echo.MiddlewareFunc {
 			if skipper(c) {
 				return next(c)
 			}
-			if skipRateLimits(c) {
-				return next(c)
-			}
 
-			uID := c.(*echoUtil.CustomContext).GetUserUID()
+			uID := c.(*echoUtil.CustomContext).GetUserInfo().GetUser()
 			if uID == "" {
 				uID, err = limiter.getRealIP(c.Request())
 				if err != nil {
@@ -53,11 +50,6 @@ func StreamRateLimitMiddleware(skipper middleware.Skipper) echo.MiddlewareFunc {
 			return next(c)
 		}
 	}
-}
-
-func skipRateLimits(c echo.Context) (result bool) {
-	cc := c.(*echoUtil.CustomContext) //nolint:errcheck
-	return !cc.GetTokenType().IsTokenRateLimited()
 }
 
 type WSRateLimiter struct {

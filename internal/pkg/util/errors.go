@@ -29,6 +29,7 @@ var (
 	ExtraNodeNoAvailableTargetsErrorResponse = types.NewRPCErrorResponse(types.NewRPCError(2000, "No available targets", nil), nil)
 	ExtraNodeAttemptsExceededErrorResponse   = types.NewRPCErrorResponse(types.NewRPCError(2001, "Attempts exceeded", nil), nil)
 	ErrChainNotSupported                     = types.NewRPCErrorResponse(types.NewRPCError(2002, "Chain not supported", nil), nil)
+	ErrGPAArrayRequest                       = types.NewRPCErrorResponse(types.NewRPCError(2003, "Forbidden to use getProgramAccounts with batch request", nil), nil)
 )
 
 var ErrBadStatusCode = errors.New("bad status code")

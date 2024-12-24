@@ -15,10 +15,11 @@ import (
 type (
 	ProxyConfig struct {
 		CertFile     string `required:"false" split_words:"true"`
-		AuraGRPCHost string `required:"false" split_words:"true"`
+		AuraGRPCHost string `envconfig:"PROXY_AURA_GRPC_HOST" required:"true" split_words:"true"`
 
-		Solana SolanaConfig `required:"true" split_words:"true"`
-		Chains Chains       `required:"false" split_words:"true"`
+		Solana  SolanaConfig `envconfig:"PROXY_SOLANA_CONFIG" required:"true" split_words:"true"`
+		Eclipse SolanaConfig `envconfig:"PROXY_ECLIPSE_CONFIG" required:"false" split_words:"true"`
+		Chains  Chains       `required:"false" split_words:"true"`
 
 		Port        uint64 `required:"true" split_words:"true"`
 		MetricsPort uint64 `required:"false" split_words:"true"`
@@ -26,9 +27,9 @@ type (
 		IsMainnet bool `required:"true" default:"true" split_words:"true"`
 	}
 	SolanaConfig struct {
-		DasAPIURL       []WrappedURL `envconfig:"PROXY_SOLANA_DAS_API_URL" required:"true" split_words:"true"`
-		BasicRouteNodes SolanaNodes  `envconfig:"PROXY_SOLANA_BASIC_ROUTE_NODES" required:"true" split_words:"true"`
-		WSHostURL       []WrappedURL `envconfig:"PROXY_SOLANA_WS_HOST_URL" required:"false" split_words:"true"`
+		DasAPIURL       []WrappedURL `json:"dasAPIURL"`
+		BasicRouteNodes SolanaNodes  `json:"basicRouteNodes"`
+		WSHostURL       []WrappedURL `json:"WSHostURL"`
 	}
 )
 
@@ -80,6 +81,14 @@ type (
 
 	WrappedURL url.URL
 )
+
+func (s *SolanaConfig) Decode(value string) error {
+	if value == "" {
+		return nil
+	}
+
+	return json.Unmarshal([]byte(value), &s)
+}
 
 func (c *SolanaNodes) Decode(value string) error {
 	if value == "" {

@@ -68,7 +68,7 @@ func RateLimiterWithConfig(config RateLimiterConfig) echo.MiddlewareFunc {
 				c.Error(config.ErrorHandler(c, err))
 				return nil
 			}
-			if allow, err := config.Store.Allow(identifier, cc.GetReqPerSecond()); !allow {
+			if allow, err := config.Store.Allow(identifier, int64(cc.GetReqPerSecond())); !allow {
 				c.Error(config.DenyHandler(c, identifier, err))
 				return nil
 			}

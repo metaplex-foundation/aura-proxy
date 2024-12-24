@@ -173,6 +173,7 @@ outerLoop:
 		if target.provider != "" {
 			metrics.IncPartnerNodeUsage(target.provider, !mustContinue)
 			ptc.c.ReachPartnerNode()
+			ptc.c.SetProvider(target.provider)
 		}
 		if firstSlotOnNode != 0 {
 			// slotAmount calculation
@@ -200,7 +201,7 @@ outerLoop:
 			err = echo.NewHTTPError(http.StatusInternalServerError, util.ExtraNodeNoAvailableTargetsErrorResponse)
 		}
 	}
-	log.Logger.Proxy.Infof("Request sent to: %s", target.provider)
+	log.Logger.Proxy.Debugf("Request sent to: %s", target.provider)
 
 	targetType := publicRPCTargetType
 	if target != nil {

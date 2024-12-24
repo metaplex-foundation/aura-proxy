@@ -6,7 +6,6 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"aura-proxy/internal/pkg/metrics"
-	"aura-proxy/internal/pkg/models"
 	"aura-proxy/internal/pkg/util"
 	echoUtil "aura-proxy/internal/pkg/util/echo"
 )
@@ -25,9 +24,6 @@ func NewMetricsMiddleware() echo.MiddlewareFunc {
 
 			cp := util.NewRuntimeCheckpoint("NewMetricsMiddleware")
 
-			if cc.GetTokenType() == models.OnlyPublicNodesTokenType { // our test req
-				return err
-			}
 			rpcMethod := cc.GetReqMethod()
 			success := !cc.GetProxyHasError() || cc.GetProxyUserError()
 

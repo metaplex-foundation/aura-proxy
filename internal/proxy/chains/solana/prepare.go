@@ -43,6 +43,36 @@ func (s *Adapter) PreparePostReq(c *echoUtil.CustomContext) *types.RPCResponse {
 	return nil
 }
 
+func (s *EclipseAdapter) PreparePostReq(c *echoUtil.CustomContext) *types.RPCResponse {
+	cp := util.NewRuntimeCheckpoint("solanaAdapter.PreparePostReq")
+
+	parsedReqs, arrayRequested, rpcErrResponse := transport.ParseJSONRPCRequestBody(c.GetReqBody, s.GetAvailableMethods(), false)
+	if rpcErrResponse != nil {
+		c.SetRPCErrors([]int{rpcErrResponse.Error.Code})
+		c.SetProxyUserError(true)
+		return rpcErrResponse
+	}
+
+	block, rpcErrResponse := blockMethodsValidation(parsedReqs)
+	if rpcErrResponse != nil {
+		c.SetRPCErrors([]int{rpcErrResponse.Error.Code})
+		c.SetProxyUserError(true)
+		return rpcErrResponse
+	}
+
+	c.SetReqBlock(block)
+	c.SetArrayRequested(arrayRequested)
+	c.SetRPCRequestsParsed(parsedReqs)
+	c.SetReqMethods(util.Map(parsedReqs, func(r *types.RPCRequest) string { return r.Method }))
+	c.SetStatsAdditionalData(getContextValueForRequest(c.GetReqMethod(), parsedReqs))
+
+	m := c.GetMetrics()
+	m.SetTitle(c.GetReqMethod())
+	m.AddCheckpoint(cp)
+
+	return nil
+}
+
 func getContextValueForRequest(rpcMethod string, parsedRequests types.RPCRequests) (res string) {
 	if rpcMethod == "" || rpcMethod == echoUtil.MultipleValuesRequested || len(parsedRequests) == 0 || parsedRequests[0] == nil {
 		return
