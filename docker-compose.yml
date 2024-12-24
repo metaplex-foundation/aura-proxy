@@ -1,19 +1,40 @@
-version: "3.1"
-
+---
 services:
   aura-proxy:
     container_name: aura-proxy
-    image: aura-proxy-go:latest
-    restart: always
+    image: ghcr.io/adm-metaex/aura-proxy/aura-proxy:v0.0.1-90c07a8
+    restart: unless-stopped
     tty: true
     ports:
       - "${PROXY_PORT}:${PROXY_PORT}"
       - "${PROXY_METRICS_PORT}:${PROXY_METRICS_PORT}"
     env_file:
       - .env
-    entrypoint: "proxy"
+    # entrypoint: "proxy"
+    volumes:
+      - ./PROXY_CERT_FILE:/app/PROXY_CERT_FILE:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 7000M
     command:
       - -log=debug
     logging:
       options:
         max-size: "5g"
+    networks:
+      - aura-gw
+    labels:
+      - aura-gw=healthy
+    # healthcheck:
+    #   test: ["CMD-SHELL", "curl -skf https://localhost:/service-status || egrep -q 'status\":\"operational\"'"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 10s
+
+networks:
+  aura-gw:
+    driver: bridge
+    name: aura-gw
