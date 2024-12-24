@@ -44,23 +44,21 @@ func NewLoggerMiddleware(saveLog func(s *proto.Stat), saveDetailedRequest func(s
 				saveLog(buildStatStruct(cc.GetReqID(), v.Status, v.Latency.Milliseconds(), endpoint,
 					cc.GetProxyAttempts(), cc.GetProxyResponseTime(), cc.GetReqMethod(), cc.GetRPCError(), v.UserAgent,
 					cc.GetStatsAdditionalData(), cc.GetUserUID(), cc.GetChainName(), cc.GetProjectUUID(), v.ResponseSize, cc.GetTargetType()))
-				if cc.IsTrackedRequest() {
-					saveDetailedRequest(&proto.DetailedRequest{
-						Timestamp:         timestamppb.New(time.Now().UTC()),
-						UserUid:           cc.GetUserUID(),
-						RequestUuid:       cc.GetReqID(),
-						Endpoint:          cc.GetProxyEndpoint(),
-						RpcErrorCode:      strconv.FormatInt(int64(cc.GetRPCError()), 10),
-						UserAgent:         v.UserAgent,
-						RpcMethod:         cc.GetReqMethod(),
-						RpcRequestBody:    cc.GetReqBodyString(),
-						Chain:             cc.GetChainName(),
-						ExecutionTimeMs:   v.Latency.Milliseconds(),
-						Status:            uint32(v.Status),
-						Attempts:          uint32(cc.GetProxyAttempts()),
-						ResponseSizeBytes: v.ResponseSize,
-					})
-				}
+				saveDetailedRequest(&proto.DetailedRequest{
+					Timestamp:         timestamppb.New(time.Now().UTC()),
+					UserUid:           cc.GetUserUID(),
+					RequestUuid:       cc.GetReqID(),
+					Endpoint:          cc.GetProxyEndpoint(),
+					RpcErrorCode:      strconv.FormatInt(int64(cc.GetRPCError()), 10),
+					UserAgent:         v.UserAgent,
+					RpcMethod:         cc.GetReqMethod(),
+					RpcRequestBody:    cc.GetReqBodyString(),
+					Chain:             cc.GetChainName(),
+					ExecutionTimeMs:   v.Latency.Milliseconds(),
+					Status:            uint32(v.Status),
+					Attempts:          uint32(cc.GetProxyAttempts()),
+					ResponseSizeBytes: v.ResponseSize,
+				})
 			}
 
 			m := cc.GetMetrics()

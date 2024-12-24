@@ -6,7 +6,10 @@ import (
 	"strings"
 )
 
-const ChainName = "solana"
+const (
+	ChainName        = "solana"
+	EclipseChainName = "eclipse"
+)
 
 func init() {
 	for k, v := range CNFTMethodList {

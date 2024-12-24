@@ -3,6 +3,7 @@ package echo
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -43,7 +44,8 @@ func NewRateLimiter(skipper middleware.Skipper) echo.MiddlewareFunc {
 	config.Store = NewRateLimiterMemoryStoreWithConfig()
 	config.Skipper = skipper
 	config.IdentifierExtractor = func(c *CustomContext) (string, error) {
-		id := c.GetUserUID()
+		// TODO: refactor
+		id := fmt.Sprintf("%s/%t/%t/%s", c.GetUserInfo().GetUser(), c.GetIsDASRequest(), c.GetIsGPARequest(), c.GetChainName())
 		if id != "" {
 			return id, nil
 		}

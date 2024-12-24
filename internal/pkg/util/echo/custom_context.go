@@ -6,11 +6,13 @@ import (
 	"io"
 	"time"
 
+	auraProto "github.com/adm-metaex/aura-api/pkg/proto"
 	"github.com/adm-metaex/aura-api/pkg/types"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
+	"aura-proxy/internal/pkg/chains/solana"
 	"aura-proxy/internal/pkg/log"
 	"aura-proxy/internal/pkg/models"
 	"aura-proxy/internal/pkg/util"
@@ -35,7 +37,8 @@ type CustomContext struct {
 
 	echo.Context
 
-	//userInfo          *proto.GetUserInfoResp
+	userInfo          *auraProto.UserWithTokens
+	subscription      *auraProto.SubscriptionWithPricing
 	reqBody           *bytes.Reader
 	metrics           *util.RuntimeMetrics
 	rpcRequestsParsed types.RPCRequests
@@ -47,12 +50,15 @@ type CustomContext struct {
 	proxyAttempts     int
 	proxyResponseTime int64
 	reqBlock          int64
+	creditsUsed       int64
 
-	proxyUserError   bool
-	proxyHasError    bool
-	arrayRequested   bool
-	isPartnerNode    bool
-	isTrackedRequest bool
+	proxyUserError bool
+	proxyHasError  bool
+	arrayRequested bool
+	isPartnerNode  bool
+
+	isDASRequest bool
+	isGPARequest bool
 }
 
 func CustomContextMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
@@ -216,18 +222,17 @@ func (c *CustomContext) GetReqDuration() time.Time {
 	return c.reqDuration
 }
 
-//	func (c *CustomContext) SetUserInfo(u *proto.GetUserInfoResp) {
-//		if u == nil {
-//			return
-//		}
-//
-//		c.userInfo = u
-//		c.projectUUID = util.ParseUUIDOrDefault(u.GetProjectUuid())
-//	}
-//
-//	func (c *CustomContext) GetUserInfo() *proto.GetUserInfoResp {
-//		return c.userInfo
-//	}
+func (c *CustomContext) SetUserInfo(u *auraProto.UserWithTokens) {
+	if u == nil {
+		return
+	}
+
+	c.userInfo = u
+}
+
+func (c *CustomContext) GetUserInfo() *auraProto.UserWithTokens {
+	return c.userInfo
+}
 func (c *CustomContext) GetProjectUUID() uuid.UUID {
 	return c.projectUUID
 }
@@ -295,18 +300,63 @@ func (c *CustomContext) GetIsPartnerNode() bool {
 	return c.isPartnerNode
 }
 
-func (c *CustomContext) GetReqPerSecond() int64 {
-	return 100
-	//if c.userInfo == nil || c.userInfo.GetRequestPerSecond() == 0 {
-	//return c.GetTokenType().GetReqPerSecond()
-	//}
-
-	//return c.userInfo.GetRequestPerSecond()
+func (c *CustomContext) GetReqPerSecond() int32 {
+	switch {
+	case c.isDASRequest && c.chainName == solana.ChainName:
+		return c.subscription.GetPricing().GetAuraDas().GetRequestsPerSecond()
+	case c.isDASRequest && c.chainName == solana.EclipseChainName:
+		return c.subscription.GetPricing().GetEclipseDas().GetRequestsPerSecond()
+	case !c.isDASRequest && !c.isGPARequest && c.chainName == solana.ChainName:
+		return c.subscription.GetPricing().GetSolanaRpc().GetRequestsPerSecond()
+	case !c.isDASRequest && !c.isGPARequest && c.chainName == solana.EclipseChainName:
+		return c.subscription.GetPricing().GetEclipseRpc().GetRequestsPerSecond()
+	case c.isGPARequest:
+		return c.subscription.GetPricing().GetGetProgramAccounts().GetRequestsPerSecond()
+	default:
+		return 10
+	}
 }
 
-func (c *CustomContext) SetIsTrackedRequest(v bool) {
-	c.isTrackedRequest = v
+func (c *CustomContext) GetReqCost() int64 {
+	switch {
+	case c.isDASRequest && c.chainName == solana.ChainName:
+		return c.subscription.GetPricing().GetAuraDas().GetPriceMplx()
+	case c.isDASRequest && c.chainName == solana.EclipseChainName:
+		return c.subscription.GetPricing().GetEclipseDas().GetPriceMplx()
+	case !c.isDASRequest && !c.isGPARequest && c.chainName == solana.ChainName:
+		return c.subscription.GetPricing().GetSolanaRpc().GetPriceMplx()
+	case !c.isDASRequest && !c.isGPARequest && c.chainName == solana.EclipseChainName:
+		return c.subscription.GetPricing().GetEclipseRpc().GetPriceMplx()
+	case c.isGPARequest:
+		return c.subscription.GetPricing().GetGetProgramAccounts().GetPriceMplx()
+	default:
+		return 10
+	}
 }
-func (c *CustomContext) IsTrackedRequest() bool {
-	return c.isTrackedRequest
+
+func (c *CustomContext) SetIsDASRequest(isDASRequest bool) {
+	c.isDASRequest = isDASRequest
+}
+func (c *CustomContext) GetIsDASRequest() bool {
+	return c.isDASRequest
+}
+func (c *CustomContext) SetIsGPARequest(isGPARequest bool) {
+	c.isGPARequest = isGPARequest
+}
+func (c *CustomContext) GetIsGPARequest() bool {
+	return c.isGPARequest
+}
+
+func (c *CustomContext) SetSubscription(subscription *auraProto.SubscriptionWithPricing) {
+	c.subscription = subscription
+}
+func (c *CustomContext) GetSubscription() *auraProto.SubscriptionWithPricing {
+	return c.subscription
+}
+
+func (c *CustomContext) SetCreditsUsed(creditsUsed int64) {
+	c.creditsUsed = creditsUsed
+}
+func (c *CustomContext) GetCreditsUsed() int64 {
+	return c.creditsUsed
 }

@@ -12,25 +12,21 @@ import (
 	echoUtil "aura-proxy/internal/pkg/util/echo"
 )
 
-const (
-	cNFTTargetType = "c_nft"
-)
-
 var (
-	chainHosts = []string{
-		fmt.Sprintf("%s%s", solana.ChainName, util.ProxyBasePath), // TODO: TBD
-		"localhost:8000", // for local tests
-		"127.0.0.1:8000", // for local tests
+	eclipseChainHosts = []string{
+		fmt.Sprintf("%s%s", solana.EclipseChainName, util.ProxyBasePath), // TODO: TBD
+		"node.aura-eclipse.com",
+		"proxy.aura-eclipse.com",
 	}
 )
 
-type Adapter struct {
+type EclipseAdapter struct {
 	publicTransport *publicTransport
 	cNFTTransport   *CNFTTransport
 }
 
-func NewSolanaAdapter(cfg *configtypes.SolanaConfig, isMainnet bool) (a *Adapter, err error) { //nolint:gocritic
-	a = &Adapter{}
+func NewEclipseAdapter(cfg *configtypes.SolanaConfig, isMainnet bool) (a *EclipseAdapter, err error) { //nolint:gocritic
+	a = &EclipseAdapter{}
 	err = a.initTransports(cfg, isMainnet)
 	if err != nil {
 		return nil, fmt.Errorf("initTransports: %s", err)
@@ -39,21 +35,21 @@ func NewSolanaAdapter(cfg *configtypes.SolanaConfig, isMainnet bool) (a *Adapter
 	return a, nil
 }
 
-func (*Adapter) GetName() string {
-	return solana.ChainName
+func (*EclipseAdapter) GetName() string {
+	return solana.EclipseChainName
 }
-func (*Adapter) GetAvailableMethods() map[string]uint {
+func (*EclipseAdapter) GetAvailableMethods() map[string]uint {
 	return solana.MethodList
 }
-func (*Adapter) GetHostNames() []string {
+func (*EclipseAdapter) GetHostNames() []string {
 	return chainHosts
 }
 
-func (s *Adapter) ProxyWSRequest(c echo.Context) error {
+func (s *EclipseAdapter) ProxyWSRequest(c echo.Context) error {
 	return s.publicTransport.predefinedTransport.DefaultProxyWS(c) // TODO: resolve for devnet
 }
 
-func (s *Adapter) ProxyPostRequest(c *echoUtil.CustomContext) (resBody []byte, resCode int, err error) {
+func (s *EclipseAdapter) ProxyPostRequest(c *echoUtil.CustomContext) (resBody []byte, resCode int, err error) {
 	reqMethods := c.GetReqMethods()
 
 	if s.cNFTTransport.canHandle(reqMethods) {
@@ -68,7 +64,7 @@ func (s *Adapter) ProxyPostRequest(c *echoUtil.CustomContext) (resBody []byte, r
 	return resBody, http.StatusOK, err
 }
 
-func (s *Adapter) initTransports(cfg *configtypes.SolanaConfig, isMainnet bool) (err error) { //nolint:gocritic
+func (s *EclipseAdapter) initTransports(cfg *configtypes.SolanaConfig, isMainnet bool) (err error) { //nolint:gocritic
 	s.publicTransport, err = NewPublicTransport(cfg.BasicRouteNodes, cfg.WSHostURL, isMainnet)
 	if err != nil {
 		return fmt.Errorf("NewDefaultProxyTransport: %s", err)
