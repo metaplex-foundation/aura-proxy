@@ -125,12 +125,15 @@ func (p *proxy) initAdapters(cfg *config.Config) error { //nolint:gocritic
 	for _, n := range solanaAdapter.GetHostNames() {
 		p.adapters[n] = solanaAdapter
 	}
-	eclipseAdapter, err := solana.NewEclipseAdapter(&cfg.Proxy.Eclipse, cfg.Proxy.IsMainnet)
-	if err != nil {
-		return fmt.Errorf("NewEclipseAdapter: %s", err)
-	}
-	for _, n := range eclipseAdapter.GetHostNames() {
-		p.adapters[n] = eclipseAdapter
+	// TODO: refactor
+	if len(cfg.Proxy.Eclipse.DasAPIURL) > 0 && len(cfg.Proxy.Eclipse.BasicRouteNodes) > 0 {
+		eclipseAdapter, err := solana.NewEclipseAdapter(&cfg.Proxy.Eclipse, cfg.Proxy.IsMainnet)
+		if err != nil {
+			return fmt.Errorf("NewEclipseAdapter: %s", err)
+		}
+		for _, n := range eclipseAdapter.GetHostNames() {
+			p.adapters[n] = eclipseAdapter
+		}
 	}
 
 	return nil

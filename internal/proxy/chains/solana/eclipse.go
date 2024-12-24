@@ -14,9 +14,9 @@ import (
 
 var (
 	eclipseChainHosts = []string{
-		fmt.Sprintf("%s%s", solana.EclipseChainName, util.ProxyBasePath), // TODO: TBD
-		"node.aura-eclipse.com",
-		"proxy.aura-eclipse.com",
+		"aura-eclipse-mainnet.metaplex.com",
+		//"localhost:2011", // for local tests
+		//"127.0.0.1:2011", // for local tests
 	}
 )
 
