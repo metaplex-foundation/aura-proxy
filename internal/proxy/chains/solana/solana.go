@@ -20,6 +20,8 @@ var (
 	chainHosts = []string{
 		"aura-mainnet.metaplex.com",
 		"aura-devnet.metaplex.com",
+		"mainnet-aura.metaplex.com",
+		"devnet-aura.metaplex.com",
 		"localhost:2011", // for local tests
 		"127.0.0.1:2011", // for local tests
 	}

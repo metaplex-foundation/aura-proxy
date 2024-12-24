@@ -15,6 +15,7 @@ import (
 var (
 	eclipseChainHosts = []string{
 		"aura-eclipse-mainnet.metaplex.com",
+		"eclipse-mainnet-aura.metaplex.com",
 		//"localhost:2011", // for local tests
 		//"127.0.0.1:2011", // for local tests
 	}
