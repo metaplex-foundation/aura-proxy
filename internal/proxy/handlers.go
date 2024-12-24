@@ -51,6 +51,7 @@ func (p *proxy) initProxyHandlers(tokenChecker *middlewares.TokenChecker) {
 		p.RequestPrepareMiddleware(),
 		apiTokenCheckerMiddleware,
 		rateLimiterMiddleware,
+		tokenChecker.UserBalanceMiddleware(),
 		echoUtil.RequestTimeoutMiddleware(func(c echo.Context) bool { return c.IsWebSocket() }),
 		middlewares.StreamRateLimitMiddleware(func(c echo.Context) bool { return !c.IsWebSocket() }), // WS rate limiter
 		middlewares.RequestIDMiddleware(),

@@ -60,6 +60,23 @@ func APITokenCheckerMiddleware(tokenChecker *TokenChecker) echo.MiddlewareFunc {
 	}
 }
 
+func (t *TokenChecker) UserBalanceMiddleware() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			cc := c.(*echoUtil.CustomContext)
+			u := cc.GetUserInfo()
+			u.MplxBalance -= cc.GetCreditsUsed()
+			for _, tkn := range u.GetTokens() {
+				t.userCache.Set(tkn, &auraProto.GetUserInfoResp{
+					User: u,
+				}, userInfoCacheInterval)
+			}
+
+			return next(c)
+		}
+	}
+}
+
 type TokenChecker struct {
 	userCache          *cache.Cache
 	auraAPI            auraProto.AuraClient
@@ -162,10 +179,6 @@ func (t *TokenChecker) getUserFromAPICached(cc *echoUtil.CustomContext, token st
 		return user, ErrCreditsExhausted
 	}
 	cc.SetCreditsUsed(credits)
-	user.User.MplxBalance -= credits
-	for _, tkn := range user.GetUser().GetTokens() {
-		t.userCache.Set(tkn, user, userInfoCacheInterval)
-	}
 
 	return
 }
