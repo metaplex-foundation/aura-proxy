@@ -16,14 +16,14 @@ const flushInterval = time.Second * 30
 type RequestCounter struct {
 	wg       *sync.WaitGroup
 	auraAPI  auraProto.AuraClient
-	counters map[string]map[string]map[string]int64
+	counters map[string]map[string]map[string]*auraProto.RequestsWithUsage
 	mx       sync.Mutex
 }
 
 func NewRequestCounter(ctx context.Context, wg *sync.WaitGroup, auraAPI auraProto.AuraClient) (r *RequestCounter) {
 	r = &RequestCounter{
 		wg:       wg,
-		counters: make(map[string]map[string]map[string]int64), // providerID/chain/token/reqCount
+		counters: make(map[string]map[string]map[string]*auraProto.RequestsWithUsage), // providerID/chain/token/reqCount
 		mx:       sync.Mutex{},
 		auraAPI:  auraAPI,
 	}
@@ -42,7 +42,7 @@ func NewRequestCounter(ctx context.Context, wg *sync.WaitGroup, auraAPI auraProt
 }
 
 func (r *RequestCounter) IncUserRequests(user *auraProto.UserWithTokens, currentReqCount int64, chain, token string) {
-	if user == nil || currentReqCount == 0 {
+	if user == nil {
 		return
 	}
 	userID := user.GetUser()
@@ -53,19 +53,23 @@ func (r *RequestCounter) IncUserRequests(user *auraProto.UserWithTokens, current
 
 	r.mx.Lock()
 	if r.counters[userID] == nil {
-		r.counters[userID] = make(map[string]map[string]int64)
+		r.counters[userID] = make(map[string]map[string]*auraProto.RequestsWithUsage)
 	}
 	if r.counters[userID][chain] == nil {
-		r.counters[userID][chain] = make(map[string]int64)
+		r.counters[userID][chain] = make(map[string]*auraProto.RequestsWithUsage)
 	}
-	r.counters[userID][chain][token] += currentReqCount
+	if r.counters[userID][chain][token] == nil {
+		r.counters[userID][chain][token] = new(auraProto.RequestsWithUsage)
+	}
+	r.counters[userID][chain][token].Reqs++
+	r.counters[userID][chain][token].Usage += currentReqCount
 	r.mx.Unlock()
 }
 
 func (r *RequestCounter) flush() (err error) {
 	r.mx.Lock()
 	counters := r.counters
-	r.counters = make(map[string]map[string]map[string]int64)
+	r.counters = make(map[string]map[string]map[string]*auraProto.RequestsWithUsage)
 	r.mx.Unlock()
 
 	if len(counters) == 0 {
@@ -89,7 +93,7 @@ func (r *RequestCounter) flush() (err error) {
 	return err
 }
 
-func mapCountersToProto(counters map[string]map[string]map[string]int64) *auraProto.IncreaseUserRequestsReq {
+func mapCountersToProto(counters map[string]map[string]map[string]*auraProto.RequestsWithUsage) *auraProto.IncreaseUserRequestsReq {
 	protoReq := &auraProto.IncreaseUserRequestsReq{
 		Reqs: make(map[string]*auraProto.UserRequestsByChain),
 	}
@@ -100,7 +104,7 @@ func mapCountersToProto(counters map[string]map[string]map[string]int64) *auraPr
 		}
 		for chain, tokens := range chains {
 			userRequestsByToken := &auraProto.UserRequestsByToken{
-				Reqs: make(map[string]int64),
+				Reqs: make(map[string]*auraProto.RequestsWithUsage),
 			}
 			for token, count := range tokens {
 				userRequestsByToken.Reqs[token] = count
