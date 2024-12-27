@@ -56,7 +56,7 @@ func (p *proxy) initProxyHandlers(tokenChecker *middlewares.TokenChecker) {
 		middlewares.StreamRateLimitMiddleware(func(c echo.Context) bool { return !c.IsWebSocket() }), // WS rate limiter
 		middlewares.RequestIDMiddleware(),
 		// post-processing middlewares
-		middlewares.NewLoggerMiddleware(p.statsCollector.Add),
+		middlewares.NewLoggerMiddleware(p.statsCollector.Add, p.isMainnet),
 		middlewares.NewMetricsMiddleware(),
 	}
 	p.router.POST("/", p.ProxyPostRouteHandler, proxyMiddlewares...)
@@ -100,7 +100,7 @@ func (p *proxy) ProxyPostRouteHandler(c echo.Context) error {
 	if err != nil {
 		return transport.HandleError(err)
 	}
-	p.requestCounter.IncUserRequests(cc.GetUserInfo(), cc.GetCreditsUsed(), cc.GetChainName(), cc.GetAPIToken())
+	p.requestCounter.IncUserRequests(cc.GetUserInfo(), cc.GetCreditsUsed(), cc.GetChainName(), cc.GetAPIToken(), p.isMainnet)
 
 	setServiceHeaders(cc.Response().Header(), cc)
 
@@ -152,6 +152,9 @@ func (p *proxy) RequestPrepareMiddleware() echo.MiddlewareFunc {
 			cc.SetIsDASRequest(isDasRequest)
 			if isGPARequest {
 				cc.SetChainName(solana.GetProgramAccounts)
+			}
+			if isDasRequest {
+				cc.SetChainName(fmt.Sprintf("%s-das", cc.GetChainName()))
 			}
 
 			return next(c)
