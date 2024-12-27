@@ -289,9 +289,9 @@ func (c *CustomContext) GetIsPartnerNode() bool {
 
 func (c *CustomContext) GetReqPerSecond() int32 {
 	switch {
-	case c.isDASRequest && c.chainName == solana.ChainName:
+	case c.chainName == solana.DasChainName:
 		return c.subscription.GetPricing().GetAuraDas().GetRequestsPerSecond()
-	case c.isDASRequest && c.chainName == solana.EclipseChainName:
+	case c.chainName == solana.EclipseDasChainName:
 		return c.subscription.GetPricing().GetEclipseDas().GetRequestsPerSecond()
 	case !c.isDASRequest && !c.isGPARequest && c.chainName == solana.ChainName:
 		return c.subscription.GetPricing().GetSolanaRpc().GetRequestsPerSecond()
@@ -306,9 +306,9 @@ func (c *CustomContext) GetReqPerSecond() int32 {
 
 func (c *CustomContext) GetReqCost() int64 {
 	switch {
-	case c.isDASRequest && c.chainName == solana.ChainName:
+	case c.chainName == solana.DasChainName:
 		return c.subscription.GetPricing().GetAuraDas().GetPriceMplx()
-	case c.isDASRequest && c.chainName == solana.EclipseChainName:
+	case c.chainName == solana.EclipseDasChainName:
 		return c.subscription.GetPricing().GetEclipseDas().GetPriceMplx()
 	case !c.isDASRequest && !c.isGPARequest && c.chainName == solana.ChainName:
 		return c.subscription.GetPricing().GetSolanaRpc().GetPriceMplx()

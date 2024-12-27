@@ -7,8 +7,10 @@ import (
 )
 
 const (
-	ChainName        = "solana"
-	EclipseChainName = "eclipse"
+	ChainName           = "solana"
+	DasChainName        = "solana-das"
+	EclipseChainName    = "eclipse"
+	EclipseDasChainName = "eclipse-das"
 )
 
 func init() {
