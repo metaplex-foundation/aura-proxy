@@ -21,7 +21,7 @@ const (
 	durationThreshold = 31 * time.Second
 )
 
-func NewLoggerMiddleware(saveLog func(s *proto.Stat)) echo.MiddlewareFunc {
+func NewLoggerMiddleware(saveLog func(s *proto.Stat), isMainnet bool) echo.MiddlewareFunc {
 	return middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		LogStatus:       true,
 		LogMethod:       true,
@@ -42,7 +42,7 @@ func NewLoggerMiddleware(saveLog func(s *proto.Stat)) echo.MiddlewareFunc {
 			if !cc.IsWebSocket() {
 				saveLog(buildStatStruct(cc.GetReqID(), v.Status, v.Latency.Milliseconds(), endpoint,
 					cc.GetProxyAttempts(), cc.GetProxyResponseTime(), cc.GetReqMethod(), cc.GetRPCError(), v.UserAgent,
-					cc.GetStatsAdditionalData(), cc.GetUserInfo().GetUser(), cc.GetChainName(), cc.GetAPIToken(), cc.GetProvider(), v.ResponseSize, cc.GetCreditsUsed(), cc.GetTargetType()))
+					cc.GetStatsAdditionalData(), cc.GetUserInfo().GetUser(), cc.GetChainName(), cc.GetAPIToken(), cc.GetProvider(), v.ResponseSize, cc.GetCreditsUsed(), cc.GetTargetType(), isMainnet))
 			}
 
 			m := cc.GetMetrics()
@@ -66,7 +66,7 @@ func NewLoggerMiddleware(saveLog func(s *proto.Stat)) echo.MiddlewareFunc {
 }
 
 func buildStatStruct(requestUUID string, statusCode int, latency int64, endpoint string, attempts int, responseTime int64,
-	rpcMethod string, rpcErrorCode int, userAgent, statsAdditionalData, userUID, chainName, token, provider string, responseSizeBytes, methodCost int64, targetType string) *proto.Stat {
+	rpcMethod string, rpcErrorCode int, userAgent, statsAdditionalData, userUID, chainName, token, provider string, responseSizeBytes, methodCost int64, targetType string, isMainnet bool) *proto.Stat {
 	return &proto.Stat{
 		UserUid:           userUID,
 		TokenUuid:         token,
@@ -86,5 +86,6 @@ func buildStatStruct(requestUUID string, statusCode int, latency int64, endpoint
 		TargetType:        targetType,
 		Provider:          provider,
 		MethodCost:        methodCost,
+		IsMainnet:         isMainnet,
 	}
 }
