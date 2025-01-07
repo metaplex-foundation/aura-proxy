@@ -1,58 +1,39 @@
 package metrics
 
-import "github.com/labstack/echo-contrib/prometheus"
+import "github.com/prometheus/client_golang/prometheus"
 
-const (
-	gaugeMetricType        = "gauge"
-	gaugeVecMetricType     = "gauge_vec"
-	counterMetricType      = "counter"
-	counterVecMetricType   = "counter_vec"
-	histogramVecMetricType = "histogram_vec"
-)
-
-func newGauge(id, name, description string) *prometheus.Metric {
-	return &prometheus.Metric{
-		ID:          id,
-		Name:        name,
-		Description: description,
-		Type:        gaugeMetricType,
-	}
-}
-func newGaugeVec(id, name, description string, labels []string) *prometheus.Metric {
-	return &prometheus.Metric{
-		ID:          id,
-		Name:        name,
-		Description: description,
-		Type:        gaugeVecMetricType,
-		Args:        labels,
-	}
+func newGauge(name, description string) prometheus.Gauge {
+	return prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: name,
+		Help: description,
+	})
 }
 
-func newCounter(id, name, description string) *prometheus.Metric {
-	return &prometheus.Metric{
-		ID:          id,
-		Name:        name,
-		Description: description,
-		Type:        counterMetricType,
-	}
-}
-func newCounterVec(id, name, description string, labels []string) *prometheus.Metric { //nolint:unparam
-	return &prometheus.Metric{
-		ID:          id,
-		Name:        name,
-		Description: description,
-		Type:        counterVecMetricType,
-		Args:        labels,
-	}
+func newGaugeVec(name, description string, labels []string) *prometheus.GaugeVec {
+	return prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: name,
+		Help: description,
+	}, labels)
 }
 
-func newHistogram(id, name, description string, labels []string, buckets []float64) *prometheus.Metric {
-	return &prometheus.Metric{
-		ID:          id,
-		Name:        name,
-		Description: description,
-		Type:        histogramVecMetricType,
-		Args:        labels,
-		Buckets:     buckets,
-	}
+func newCounter(name, description string) prometheus.Counter {
+	return prometheus.NewCounter(prometheus.CounterOpts{
+		Name: name,
+		Help: description,
+	})
+}
+
+func newCounterVec(name, description string, labels []string) *prometheus.CounterVec {
+	return prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: name,
+		Help: description,
+	}, labels)
+}
+
+func newHistogram(name, description string, labels []string, buckets []float64) *prometheus.HistogramVec {
+	return prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    name,
+		Help:    description,
+		Buckets: buckets,
+	}, labels)
 }

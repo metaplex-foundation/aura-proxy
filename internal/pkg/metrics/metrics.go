@@ -5,8 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/labstack/echo-contrib/prometheus"
-	prom "github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -17,6 +16,7 @@ const (
 	rpcErrorArg     = "rpc_error"
 	endpointArg     = "endpoint"
 	chainArg        = "chain"
+	hostArg         = "host"
 )
 
 // See the NewMetrics func for proper descriptions and prometheus names!
@@ -25,156 +25,123 @@ const (
 var (
 	metrics struct {
 		// Gauge
-		startTime            *prometheus.Metric
-		websocketConnections *prometheus.Metric
+		startTime            prometheus.Gauge
+		websocketConnections *prometheus.GaugeVec
 
 		// Counter
-		httpResponsesTotal *prometheus.Metric
-		partnersNodeUsage  *prometheus.Metric
-		rpcErrors          *prometheus.Metric
+		httpResponsesTotal *prometheus.CounterVec
+		partnersNodeUsage  *prometheus.CounterVec
+		rpcErrors          *prometheus.CounterVec
 
 		// Histogram
-		executionTime    *prometheus.Metric
-		nodeResponseTime *prometheus.Metric
-		nodeAttempts     *prometheus.Metric
-	}
+		executionTime    *prometheus.HistogramVec
+		nodeResponseTime *prometheus.HistogramVec
+		nodeAttempts     *prometheus.HistogramVec
 
-	metricList []*prometheus.Metric
+		externalRequests *prometheus.HistogramVec
+	}
 )
 
 // Creates and populates a new Metrics struct
 // This is where all the prometheus metrics, names and labels are specified
 func init() {
 	// Gauge
-	initMetric(&metrics.startTime, newGauge(
-		"startTime",
-		"start_time",
-		"api start time",
-	))
-	initMetric(&metrics.websocketConnections, newGaugeVec(
-		"websocketConnections",
-		"websocket_connections",
-		"current connection number by chain",
-		[]string{chainArg},
-	))
+	initMetric(&metrics.startTime, newGauge("start_time", "api start time"))
+	initMetric(&metrics.websocketConnections, newGaugeVec("websocket_connections", "current connection number by chain", []string{chainArg}))
 
 	basicArgs := []string{chainArg, methodMetricArg, successArg}
 
 	// Counter
-	initMetric(&metrics.httpResponsesTotal, newCounterVec(
-		"httpResponsesTotal",
-		"http_responses_total",
-		"",
-		[]string{chainArg, targetTypeArg, methodMetricArg, successArg},
-	))
-	initMetric(&metrics.partnersNodeUsage, newCounterVec(
-		"partnersNodeUsage",
-		"partners_node_usage",
-		"",
-		[]string{partnerNameArg, successArg},
-	))
-	initMetric(&metrics.rpcErrors, newCounterVec(
-		"rpcErrors",
-		"rpc_errors",
-		"",
-		[]string{rpcErrorArg, endpointArg, methodMetricArg},
-	))
+	initMetric(&metrics.httpResponsesTotal, newCounterVec("http_responses_total", "", []string{chainArg, targetTypeArg, methodMetricArg, successArg}))
+	initMetric(&metrics.partnersNodeUsage, newCounterVec("partners_node_usage", "", []string{partnerNameArg, successArg}))
+	initMetric(&metrics.rpcErrors, newCounterVec("rpc_errors", "", []string{rpcErrorArg, endpointArg, methodMetricArg}))
 
 	// Histogram
-	initMetric(&metrics.executionTime, newHistogram(
-		"executionTime",
-		"execution_time",
-		"total request execution time",
-		basicArgs,
-		[]float64{1, 5, 10, 25, 50, 100, 500, 800, 1000, 2000, 4000, 8000, 10000, 15000, 20000, 30000, 50000, 100000, 200000},
-	))
-	initMetric(&metrics.nodeResponseTime, newHistogram(
-		"nodeResponseTime",
-		"node_response_time",
-		"the time it took to fetch data from node",
-		basicArgs,
-		[]float64{1, 5, 10, 25, 50, 100, 500, 800, 1000, 2000, 4000, 8000, 10000, 15000, 20000, 30000, 50000, 100000, 200000},
-	))
-	initMetric(&metrics.nodeAttempts, newHistogram(
-		"nodeAttempts",
-		"node_attempts",
-		"attempts to fetch data from node",
-		basicArgs,
-		[]float64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
-	))
+	buckets := []float64{1, 5, 10, 25, 50, 100, 500, 800, 1000, 2000, 4000, 8000, 10000, 15000, 20000, 30000, 50000, 100000, 200000}
+	initMetric(&metrics.executionTime, newHistogram("execution_time", "total request execution time", basicArgs, buckets))
+	initMetric(&metrics.nodeResponseTime, newHistogram("node_response_time", "the time it took to fetch data from node", basicArgs, buckets))
+	initMetric(&metrics.nodeAttempts, newHistogram("node_attempts", "attempts to fetch data from node", basicArgs, []float64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}))
+
+	initMetric(&metrics.externalRequests, newHistogram("external_requests", "requests to external services", []string{chainArg, hostArg, methodMetricArg, successArg}, buckets))
+
 }
 
-func initMetric(dest **prometheus.Metric, metric *prometheus.Metric) {
+func initMetric[T prometheus.Collector](dest *T, metric T) {
 	*dest = metric
-	metricList = append(metricList, metric)
-}
-
-// Needed by echo-contrib so echo can register and collect these metrics
-func MetricList() []*prometheus.Metric {
-	return metricList
+	prometheus.MustRegister(metric)
 }
 
 func InitStartTime() {
-	metrics.startTime.MetricCollector.(prom.Gauge).Set(float64(time.Now().UTC().Unix()))
+	metrics.startTime.Set(float64(time.Now().UTC().Unix()))
 }
 
 func ObserveExecutionTime(chain, method string, success bool, d time.Duration) {
-	l := prom.Labels{
+	l := prometheus.Labels{
 		chainArg:        chain,
 		methodMetricArg: method,
 		successArg:      strconv.FormatBool(success),
 	}
-	metrics.executionTime.MetricCollector.(*prom.HistogramVec).With(l).Observe(float64(d.Milliseconds()))
+	metrics.executionTime.With(l).Observe(float64(d.Milliseconds()))
 }
 
 func ObserveNodeResponseTime(chain, method string, success bool, d int64) {
-	l := prom.Labels{
+	l := prometheus.Labels{
 		chainArg:        chain,
 		methodMetricArg: method,
 		successArg:      strconv.FormatBool(success),
 	}
-	metrics.nodeResponseTime.MetricCollector.(*prom.HistogramVec).With(l).Observe(float64(d))
+	metrics.nodeResponseTime.With(l).Observe(float64(d))
 }
 
 func ObserveNodeAttempts(chain, method string, success bool, attempts int) {
-	l := prom.Labels{
+	l := prometheus.Labels{
 		chainArg:        chain,
 		methodMetricArg: method,
 		successArg:      strconv.FormatBool(success),
 	}
-	metrics.nodeAttempts.MetricCollector.(*prom.HistogramVec).With(l).Observe(float64(attempts))
+	metrics.nodeAttempts.With(l).Observe(float64(attempts))
 }
 
 func IncHTTPResponsesTotalCnt(chain, method string, success bool, targetType string) {
-	l := prom.Labels{
+	l := prometheus.Labels{
 		chainArg:        chain,
 		methodMetricArg: method,
 		successArg:      strconv.FormatBool(success),
 		targetTypeArg:   targetType,
 	}
-	metrics.httpResponsesTotal.MetricCollector.(*prom.CounterVec).With(l).Inc()
+	metrics.httpResponsesTotal.With(l).Inc()
 }
 
 func IncPartnerNodeUsage(partnerName string, success bool) {
-	l := prom.Labels{
+	l := prometheus.Labels{
 		partnerNameArg: partnerName,
 		successArg:     strconv.FormatBool(success),
 	}
-	metrics.partnersNodeUsage.MetricCollector.(*prom.CounterVec).With(l).Inc()
+	metrics.partnersNodeUsage.With(l).Inc()
 }
 
 func IncWebsocketConnections(chain string) {
-	metrics.websocketConnections.MetricCollector.(*prom.GaugeVec).With(prom.Labels{chainArg: chain}).Inc()
+	metrics.websocketConnections.With(prometheus.Labels{chainArg: chain}).Inc()
 }
 func DecWebsocketConnections(chain string) {
-	metrics.websocketConnections.MetricCollector.(*prom.GaugeVec).With(prom.Labels{chainArg: chain}).Dec()
+	metrics.websocketConnections.With(prometheus.Labels{chainArg: chain}).Dec()
 }
 
 func IncRPCErrors(rpcErr int, endpoint, method string) {
-	l := prom.Labels{
+	l := prometheus.Labels{
 		rpcErrorArg:     fmt.Sprintf("%d", rpcErr),
 		endpointArg:     endpoint,
 		methodMetricArg: method,
 	}
-	metrics.rpcErrors.MetricCollector.(*prom.CounterVec).With(l).Inc()
+	metrics.rpcErrors.With(l).Inc()
+}
+
+func ObserveExternalRequests(chain, host, method string, success bool, d time.Duration) {
+	l := prometheus.Labels{
+		chainArg:        chain,
+		hostArg:         host,
+		methodMetricArg: method,
+		successArg:      strconv.FormatBool(success),
+	}
+	metrics.externalRequests.With(l).Observe(float64(d.Milliseconds()))
 }
