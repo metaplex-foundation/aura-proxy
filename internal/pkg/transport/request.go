@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/adm-metaex/aura-api/pkg/types"
@@ -16,6 +17,7 @@ import (
 
 	"aura-proxy/internal/pkg/chains/solana"
 	"aura-proxy/internal/pkg/log"
+	"aura-proxy/internal/pkg/metrics"
 	"aura-proxy/internal/pkg/util"
 	echoUtil "aura-proxy/internal/pkg/util/echo"
 )
@@ -47,7 +49,9 @@ func MakeHTTPRequest(c *echoUtil.CustomContext, httpClient *http.Client, reqType
 	setProxyHeaders(c, builtReq)
 
 	var buf bytes.Buffer
+	startTime := time.Now()
 	resp, err := httpClient.Do(builtReq)
+	metrics.ObserveExternalRequests(c.GetChainName(), builtReq.Host, c.GetReqMethod(), err == nil, time.Since(startTime))
 	if skipErrHandling {
 		if resp != nil {
 			_, _ = io.Copy(&buf, resp.Body) // ignore err
@@ -77,6 +81,7 @@ func MakeHTTPRequest(c *echoUtil.CustomContext, httpClient *http.Client, reqType
 
 	return buf.Bytes(), resp.StatusCode, nil
 }
+
 func setProxyHeaders(c echo.Context, req *http.Request) {
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 

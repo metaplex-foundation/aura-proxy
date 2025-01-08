@@ -11,8 +11,8 @@ import (
 	auraProto "github.com/adm-metaex/aura-api/pkg/proto"
 	"github.com/adm-metaex/aura-api/pkg/types"
 	"github.com/google/uuid"
+	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo-contrib/pprof"
-	"github.com/labstack/echo-contrib/prometheus"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
@@ -154,6 +154,7 @@ func (p *proxy) initProxyServer() {
 	// temp. Profile middleware
 	pprof.Register(s, "/pprof/d877cb77-e163-4542-9401-017dea48be76")
 
+	s.Use(echoprometheus.NewMiddleware("aura"))
 	p.router = s
 }
 
@@ -177,11 +178,7 @@ func initMetricsServer() *echo.Echo {
 			return nil
 		},
 	}))
-
-	prom := prometheus.NewPrometheus("aura", nil, metrics.MetricList())
-	// Setup metrics endpoint at another server
-	prom.SetMetricsPath(s)
-
+	s.GET("/metrics", echoprometheus.NewHandler())
 	metrics.InitStartTime()
 
 	return s
