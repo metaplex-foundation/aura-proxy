@@ -31,7 +31,11 @@ var (
 	ErrCreditsExhausted = errors.New("You've exhausted the credits for current subscription. Please upgrade your plan")
 )
 
-func APITokenCheckerMiddleware(tokenChecker *TokenChecker) echo.MiddlewareFunc {
+type ITokenChecker interface {
+	CheckToken(cc *echoUtil.CustomContext, token string) (userInfo *auraProto.UserWithTokens, err error)
+}
+
+func APITokenCheckerMiddleware(tokenChecker ITokenChecker) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			cp := util.NewRuntimeCheckpoint("APITokenCheckerMiddleware")

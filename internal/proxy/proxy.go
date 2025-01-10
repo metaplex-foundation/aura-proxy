@@ -33,6 +33,14 @@ const (
 	collectorInterval     = 10 * time.Second
 )
 
+type IRequestCounter interface {
+	IncUserRequests(user *auraProto.UserWithTokens, currentReqCount int64, chain, token string, isMainnet bool)
+}
+
+type IStatCollector interface {
+	Add(s *auraProto.Stat)
+}
+
 type proxy struct {
 	waitGroup *sync.WaitGroup
 	ctx       context.Context
@@ -41,8 +49,8 @@ type proxy struct {
 	router        *echo.Echo
 	metricsServer *echo.Echo
 
-	statsCollector *collector.Collector[*auraProto.Stat]
-	requestCounter *RequestCounter
+	statsCollector IStatCollector
+	requestCounter IRequestCounter
 	serviceName    string
 
 	adapters map[string]Adapter // host
@@ -83,17 +91,27 @@ func NewProxy(cfg config.Config) (p *proxy, err error) { //nolint:gocritic
 		return nil, fmt.Errorf("NewCollector: %s", err)
 	}
 
+	// load token to CustomContext. CustomContext must be inited before
+	tokenChecker, err := middlewares.NewTokenChecker(ctx, auraAPI)
+	if err != nil {
+		return nil, fmt.Errorf("NewTokenChecker: %s", err)
+	}
 	wg := &sync.WaitGroup{}
+	requestCounter := NewRequestCounter(ctx, wg, auraAPI)
+	return InitProxy(ctx, cancelFunc, cfg, wg, statCollector, requestCounter, tokenChecker)
+}
+
+func InitProxy(ctx context.Context, cancel context.CancelFunc, cfg config.Config, wg *sync.WaitGroup, statCollector IStatCollector, requestCounter IRequestCounter, tokenChecker ITokenChecker) (p *proxy, err error) {
 	p = &proxy{
 		proxyPort:      cfg.Proxy.Port,
 		metricsPort:    cfg.Proxy.MetricsPort,
 		metricsServer:  initMetricsServer(),
 		waitGroup:      wg,
 		ctx:            ctx,
-		ctxCancel:      cancelFunc,
+		ctxCancel:      cancel,
 		statsCollector: statCollector,
 		serviceName:    fmt.Sprintf("%s-%s", cfg.Service.Name, cfg.Service.Level),
-		requestCounter: NewRequestCounter(ctx, wg, auraAPI),
+		requestCounter: requestCounter,
 		adapters:       make(map[string]Adapter),
 		isMainnet:      cfg.Proxy.IsMainnet,
 	}
@@ -104,19 +122,13 @@ func NewProxy(cfg config.Config) (p *proxy, err error) { //nolint:gocritic
 		}
 	}
 
-	err = p.initAdapters(&cfg)
+	err = p.initAdapters(&cfg) // todo: should be injected
 	if err != nil {
 		return nil, fmt.Errorf("initAdapters: %s", err)
 	}
 	p.initProxyServer()
 
-	// load token to CustomContext. CustomContext must be inited before
-	tokenChecker, err := middlewares.NewTokenChecker(p.ctx, auraAPI)
-	if err != nil {
-		return nil, fmt.Errorf("NewTokenChecker: %s", err)
-	}
 	p.initProxyHandlers(tokenChecker)
-
 	return p, nil
 }
 
