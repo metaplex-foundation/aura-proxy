@@ -15,6 +15,9 @@ func (p ProxyConfig) Validate(possibleChains map[string]map[string]uint) error {
 	if err != nil {
 		return fmt.Errorf("solana config: %s", err)
 	}
+	if err := p.Eclipse.Validate(); err != nil {
+		return fmt.Errorf("eclipse config: %s", err)
+	}
 	err = p.Chains.Validate(possibleChains)
 	if err != nil {
 		return fmt.Errorf("chains config: %s", err)
@@ -26,6 +29,12 @@ func (p ProxyConfig) Validate(possibleChains map[string]map[string]uint) error {
 func (s SolanaConfig) Validate() error { //nolint:gocritic
 	for i := range s.DasAPIURL {
 		err := s.DasAPIURL[i].Validate()
+		if err != nil {
+			return err
+		}
+	}
+	for i := range s.WSHostURL {
+		err := s.WSHostURL[i].Validate()
 		if err != nil {
 			return err
 		}
@@ -77,6 +86,8 @@ func (w *WrappedURL) Validate() error {
 	if w.Host == "" {
 		return fmt.Errorf("invalid host: %s", w.String())
 	}
-
+	if w.Scheme != "http" && w.Scheme != "https" {
+		return fmt.Errorf("invalid scheme: %s", w.String())
+	}
 	return nil
 }

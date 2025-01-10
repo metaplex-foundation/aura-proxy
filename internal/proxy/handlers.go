@@ -38,7 +38,12 @@ func (p *proxy) serviceStatusHandler(c echo.Context) error {
 	})
 }
 
-func (p *proxy) initProxyHandlers(tokenChecker *middlewares.TokenChecker) {
+type ITokenChecker interface {
+	middlewares.ITokenChecker
+	UserBalanceMiddleware() echo.MiddlewareFunc
+}
+
+func (p *proxy) initProxyHandlers(tokenChecker ITokenChecker) {
 	apiTokenCheckerMiddleware := middlewares.APITokenCheckerMiddleware(tokenChecker)
 	rateLimiterMiddleware := echoUtil.NewRateLimiter(func(c echo.Context) bool {
 		return false
@@ -117,6 +122,9 @@ func (p *proxy) RequestPrepareMiddleware() echo.MiddlewareFunc {
 			adapter, ok := p.adapters[c.Request().Host]
 			if !ok {
 				return echo.NewHTTPError(http.StatusBadRequest, util.ErrChainNotSupported)
+			}
+			if c.IsWebSocket() {
+				return next(c)
 			}
 
 			// common prepare
