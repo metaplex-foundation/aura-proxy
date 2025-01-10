@@ -93,7 +93,6 @@ func TestProxyWebSocketIntegration(t *testing.T) {
 		// },
 	}
 	headers := http.Header{
-		"Origin":       []string{"https://mainnet-aura.metaplex.com"},
 		"Host":         []string{"mainnet-aura.metaplex.com"},
 		"Content-Type": []string{"application/json"},
 	}
