@@ -87,11 +87,7 @@ func TestProxyWebSocketIntegration(t *testing.T) {
 	// 6. Connect to the proxy via WebSocket
 	proxyWSURL := fmt.Sprintf("ws://127.0.0.1:%d/testToken1", cfg.Proxy.Port)
 
-	dialer := &websocket.Dialer{
-		// TLSClientConfig: &tls.Config{
-		// 	InsecureSkipVerify: true, // not recommended for production
-		// },
-	}
+	dialer := &websocket.Dialer{}
 	headers := http.Header{
 		"Host":         []string{"mainnet-aura.metaplex.com"},
 		"Content-Type": []string{"application/json"},
