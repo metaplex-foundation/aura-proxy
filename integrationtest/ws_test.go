@@ -89,8 +89,7 @@ func TestProxyWebSocketIntegration(t *testing.T) {
 
 	dialer := &websocket.Dialer{}
 	headers := http.Header{
-		"Host":         []string{"mainnet-aura.metaplex.com"},
-		"Content-Type": []string{"application/json"},
+		"Host": []string{"mainnet-aura.metaplex.com"},
 	}
 
 	conn, _, err := dialer.Dial(proxyWSURL, headers)
