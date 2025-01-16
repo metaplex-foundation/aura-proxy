@@ -2,7 +2,7 @@
 services:
   aura-proxy:
     container_name: aura-proxy
-    image: ghcr.io/adm-metaex/aura-proxy/aura-proxy:v0.0.1-a4f1499
+    image: ghcr.io/adm-metaex/aura-proxy/aura-proxy:v0.0.1-7abd82e
     restart: unless-stopped
     tty: true
     ports:
