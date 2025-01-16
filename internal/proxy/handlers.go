@@ -55,13 +55,14 @@ func (p *proxy) initProxyHandlers(tokenChecker ITokenChecker) {
 	proxyMiddlewares := []echo.MiddlewareFunc{
 		p.RequestPrepareMiddleware(),
 		apiTokenCheckerMiddleware,
+		// it's not only a logger, but also the clickhouse stats collector, so it should be the first middleware in the chain after the request prepare and user token check
+		middlewares.NewLoggerMiddleware(p.statsCollector.Add, p.isMainnet),
 		rateLimiterMiddleware,
+		middlewares.StreamRateLimitMiddleware(func(c echo.Context) bool { return !c.IsWebSocket() }), // WS rate limiter
 		tokenChecker.UserBalanceMiddleware(),
 		echoUtil.RequestTimeoutMiddleware(func(c echo.Context) bool { return c.IsWebSocket() }),
-		middlewares.StreamRateLimitMiddleware(func(c echo.Context) bool { return !c.IsWebSocket() }), // WS rate limiter
 		middlewares.RequestIDMiddleware(),
 		// post-processing middlewares
-		middlewares.NewLoggerMiddleware(p.statsCollector.Add, p.isMainnet),
 		middlewares.NewMetricsMiddleware(),
 	}
 	p.router.POST("/", p.ProxyPostRouteHandler, proxyMiddlewares...)
