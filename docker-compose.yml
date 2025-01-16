@@ -2,7 +2,7 @@
 services:
   aura-proxy:
     container_name: aura-proxy
-    image: ghcr.io/adm-metaex/aura-proxy/aura-proxy:v0.0.1-90c07a8
+    image: ghcr.io/adm-metaex/aura-proxy/aura-proxy:v0.0.1-afcfdeb
     restart: unless-stopped
     tty: true
     ports:
@@ -26,14 +26,13 @@ services:
     networks:
       - aura-gw
     labels:
-      - aura-gw=healthy
-    # healthcheck:
-    #   test: ["CMD-SHELL", "curl -skf https://localhost:/service-status || egrep -q 'status\":\"operational\"'"]
-    #   interval: 30s
-    #   timeout: 10s
-    #   retries: 3
-    #   start_period: 10s
-
+      - aura-proxy=healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:$PROXY_PORT/service-status | egrep -q 'status\":\"operational\"' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 networks:
   aura-gw:
     driver: bridge

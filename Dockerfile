@@ -1,25 +1,26 @@
-FROM golang:1.23-alpine3.21 as builder
+# syntax = docker/dockerfile:1.4
+FROM quay.io/projectquay/golang:1.23 as builder
 
 WORKDIR /app
 
-# used for build sqlite
-RUN apk add --update gcc musl-dev git openssh-client
-
-RUN git config --global url."git@github.com:".insteadOf "https://github.com/"
-RUN go env -w GOPRIVATE=github.com
-
-RUN mkdir ~/.ssh && echo "HOST *" > ~/.ssh/config
-RUN echo "StrictHostKeyChecking no" >> ~/.ssh/config
+RUN --mount=type=secret,id=github_pat \
+    set -eux; \
+    GIT_TOKEN="$(cat /run/secrets/github_pat)"; \
+    git config --global url."https://${GIT_TOKEN}@github.com/".insteadOf "https://github.com/"; \
+    go env -w GOPRIVATE=github.com
 
 COPY . .
 
-RUN --mount=type=ssh CGO_ENABLED=0 GOOS=linux go build -a -v -installsuffix cgo ./cmd/proxy
+RUN make build
 
 FROM alpine:3.21
+
+WORKDIR /app
+
 RUN apk add ca-certificates
-#FIX of alpine can't find binary file
-RUN apk add --no-cache libc6-compat
-RUN apk add nmap
-COPY --from=builder /app/proxy /usr/bin/
+
+COPY --from=builder /app/proxy /app
+
+ENV PATH="/app:${PATH}"
 
 ENTRYPOINT [ "./proxy" ]
