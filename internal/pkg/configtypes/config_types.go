@@ -27,9 +27,9 @@ type (
 		IsMainnet bool `required:"true" default:"true" split_words:"true"`
 	}
 	SolanaConfig struct {
-		DasAPIURL       []WrappedURL `json:"dasAPIURL"`
-		BasicRouteNodes SolanaNodes  `json:"basicRouteNodes"`
-		WSHostURL       []WrappedURL `json:"WSHostURL"`
+		DasAPIURL       SolanaNodes `json:"dasAPIURL"`
+		BasicRouteNodes SolanaNodes `json:"basicRouteNodes"`
+		WSHostURL       SolanaNodes `json:"WSHostURL"`
 	}
 )
 

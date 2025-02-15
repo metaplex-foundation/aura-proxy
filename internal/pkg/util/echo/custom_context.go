@@ -52,6 +52,7 @@ type CustomContext struct {
 	arrayRequested bool
 	isPartnerNode  bool
 
+	requestType  types.RequestType
 	isDASRequest bool
 	isGPARequest bool
 }
@@ -353,4 +354,11 @@ func (c *CustomContext) SetProvider(provider string) {
 }
 func (c *CustomContext) GetProvider() string {
 	return c.provider
+}
+
+func (c *CustomContext) SetRequestType(requestType types.RequestType) {
+	c.requestType = requestType
+}
+func (c *CustomContext) GetRequestType() types.RequestType {
+	return c.requestType
 }
