@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/adm-metaex/aura-api/pkg/proto"
+	"github.com/adm-metaex/aura-api/pkg/types"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -39,12 +40,10 @@ func NewLoggerMiddleware(saveLog func(s *proto.Stat), isMainnet bool) echo.Middl
 				v.Status = http.StatusRequestTimeout // because this err code assigned after NewLoggerMiddlewares
 			}
 
-			if !cc.IsWebSocket() {
-				saveLog(buildStatStruct(cc.GetReqID(), v.Status, v.Latency.Milliseconds(), endpoint,
-					cc.GetProxyAttempts(), cc.GetProxyResponseTime(), cc.GetReqMethod(), cc.GetRPCError(), v.UserAgent,
-					cc.GetStatsAdditionalData(), cc.GetUserInfo().GetUser(), cc.GetChainName(), cc.GetAPIToken(),
-					cc.GetProvider(), v.ResponseSize, cc.GetCreditsUsed(), cc.GetTargetType(), isMainnet, cc.GetUserInfo().SubscriptionId))
-			}
+			saveLog(buildStatStruct(cc.GetReqID(), v.Status, v.Latency.Milliseconds(), endpoint,
+				cc.GetProxyAttempts(), cc.GetProxyResponseTime(), cc.GetReqMethod(), cc.GetRPCError(), v.UserAgent,
+				cc.GetStatsAdditionalData(), cc.GetUserInfo().GetUser(), cc.GetChainName(), cc.GetAPIToken(), cc.GetProvider(),
+				v.ResponseSize, cc.GetCreditsUsed(), cc.GetTargetType(), isMainnet, cc.GetUserInfo().SubscriptionId, cc.GetRequestType()))
 
 			m := cc.GetMetrics()
 			m.AddCheckpoint(cp)
@@ -67,8 +66,8 @@ func NewLoggerMiddleware(saveLog func(s *proto.Stat), isMainnet bool) echo.Middl
 }
 
 func buildStatStruct(requestUUID string, statusCode int, latency int64, endpoint string, attempts int, responseTime int64,
-	rpcMethod string, rpcErrorCode int, userAgent, statsAdditionalData, userUID, chainName, token, provider string, responseSizeBytes,
-	methodCost int64, targetType string, isMainnet bool, subscription_id int64) *proto.Stat {
+	rpcMethod string, rpcErrorCode int, userAgent, statsAdditionalData, userUID, chainName, token, provider string,
+	responseSizeBytes, methodCost int64, targetType string, isMainnet bool, subscription_id int64, requestType types.RequestType) *proto.Stat {
 	return &proto.Stat{
 		UserUid:           userUID,
 		TokenUuid:         token,
@@ -90,5 +89,6 @@ func buildStatStruct(requestUUID string, statusCode int, latency int64, endpoint
 		MethodCost:        methodCost,
 		IsMainnet:         isMainnet,
 		SubscriptionId:    subscription_id,
+		RequestType:       requestType.String(),
 	}
 }

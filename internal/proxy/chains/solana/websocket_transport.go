@@ -1,4 +1,4 @@
-package transport
+package solana
 
 import (
 	"errors"
@@ -12,7 +12,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"aura-proxy/internal/pkg/configtypes"
-	"aura-proxy/internal/pkg/util"
+	"aura-proxy/internal/pkg/models"
 	"aura-proxy/internal/pkg/util/balancer"
 	echoUtil "aura-proxy/internal/pkg/util/echo"
 )
@@ -20,16 +20,19 @@ import (
 type (
 	ProxyTransport struct {
 		httpClient *http.Client
-		targets    *balancer.RoundRobin[string]
-		wsTargets  *balancer.RoundRobin[*url.URL]
+		wsTargets  *balancer.RoundRobin[*ProxyTarget]
 	}
 )
 
-func NewDefaultProxyTransport(cfg configtypes.Chain) *ProxyTransport {
+func NewDefaultProxyTransport(hosts []configtypes.SolanaNode) *ProxyTransport {
+	targets := make([]*ProxyTarget, 0, len(hosts))
+	for i := range hosts {
+		targets = append(targets, NewProxyTarget(models.URLWithMethods{URL: hosts[i].URL.String()}, 0, hosts[i].Provider, hosts[i].NodeType))
+	}
+
 	return &ProxyTransport{
 		httpClient: &http.Client{Timeout: echoUtil.APIWriteTimeout - time.Second},
-		targets:    balancer.NewRoundRobin(util.Map(cfg.Hosts, func(t configtypes.WrappedURL) string { return t.String() })),
-		wsTargets:  balancer.NewRoundRobin(util.Map(cfg.WSHosts, func(t configtypes.WrappedURL) *url.URL { return t.ToURLPtr() })),
+		wsTargets:  balancer.NewRoundRobin(targets),
 	}
 }
 
@@ -39,7 +42,16 @@ func (p *ProxyTransport) DefaultProxyWS(c echo.Context) (err error) {
 		return errors.New("empty target")
 	}
 
-	c.Request().Host = target.Host
+	cc := c.(*echoUtil.CustomContext) //nolint:errcheck
+	cc.SetProvider(target.provider)
+
+	var wrapped configtypes.WrappedURL
+	err = wrapped.UnmarshalText([]byte(target.url))
+	if err != nil {
+		return fmt.Errorf("UnmarshalText: %s", err)
+	}
+
+	c.Request().Host = wrapped.Host
 	c.Request().URL = &url.URL{}
 	if additionalPath := p.getRestPath(c); additionalPath != "" {
 		c.Request().URL, err = url.Parse(additionalPath)
@@ -48,7 +60,7 @@ func (p *ProxyTransport) DefaultProxyWS(c echo.Context) (err error) {
 		}
 	}
 
-	reverseProxy := &httputil.ReverseProxy{Director: func(req *http.Request) { rewriteRequestURL(req, target) }}
+	reverseProxy := &httputil.ReverseProxy{Director: func(req *http.Request) { rewriteRequestURL(req, wrapped.ToURLPtr()) }}
 	reverseProxy.ServeHTTP(c.Response(), c.Request())
 
 	return nil
@@ -60,7 +72,13 @@ func (p *ProxyTransport) ProxySSE(c echo.Context) (err error) {
 		return errors.New("empty target")
 	}
 
-	c.Request().Host = target.Host
+	var wrapped configtypes.WrappedURL
+	err = wrapped.UnmarshalText([]byte(target.url))
+	if err != nil {
+		return fmt.Errorf("UnmarshalText: %s", err)
+	}
+
+	c.Request().Host = wrapped.Host
 	if additionalPath := p.getRestPath(c); additionalPath != "" {
 		c.Request().URL, err = url.Parse(additionalPath)
 		if err != nil {
@@ -70,7 +88,7 @@ func (p *ProxyTransport) ProxySSE(c echo.Context) (err error) {
 		c.Request().URL = &url.URL{}
 	}
 
-	reverseProxy := &httputil.ReverseProxy{Director: func(req *http.Request) { rewriteRequestURL(req, target) }}
+	reverseProxy := &httputil.ReverseProxy{Director: func(req *http.Request) { rewriteRequestURL(req, wrapped.ToURLPtr()) }}
 	reverseProxy.ServeHTTP(c.Response(), c.Request())
 
 	return nil

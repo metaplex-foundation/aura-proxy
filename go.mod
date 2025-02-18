@@ -2,14 +2,12 @@ module aura-proxy
 
 go 1.23
 
-toolchain go1.23.4
-
 replace github.com/adm-metaex/aura-api => github.com/adm-metaex/aura-api v0.0.4
 
 require (
 	github.com/adm-metaex/aura-api v0.0.1
 	github.com/buger/jsonparser v1.1.1
-	github.com/gagliardetto/solana-go v1.11.0
+	github.com/gagliardetto/solana-go v1.12.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.4.2
 	github.com/joho/godotenv v1.5.1
@@ -53,7 +51,7 @@ require (
 	github.com/streamingfast/logging v0.0.0-20230608130331-f22c91403091 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
-	go.mongodb.org/mongo-driver v1.11.4 // indirect
+	go.mongodb.org/mongo-driver v1.12.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/ratelimit v0.2.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
@@ -63,5 +61,5 @@ require (
 	golang.org/x/term v0.27.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241015192408-796eee8c2d53 // indirect
-	google.golang.org/grpc v1.69.2
+	google.golang.org/grpc v1.69.2 // indirect
 )

@@ -66,12 +66,12 @@ func (s *EclipseAdapter) ProxyPostRequest(c *echoUtil.CustomContext) (resBody []
 }
 
 func (s *EclipseAdapter) initTransports(cfg *configtypes.SolanaConfig, isMainnet bool) (err error) { //nolint:gocritic
-	s.publicTransport, err = NewPublicTransport(cfg.BasicRouteNodes, cfg.WSHostURL, isMainnet)
+	s.publicTransport, err = NewPublicTransport(cfg.BasicRouteNodes, cfg.WSHostNodes, isMainnet)
 	if err != nil {
 		return fmt.Errorf("NewDefaultProxyTransport: %s", err)
 	}
 
-	s.cNFTTransport = NewCNFTransport(cfg.DasAPIURL, cNFTTargetType, solana.CNFTMethodList)
+	s.cNFTTransport = NewCNFTransport(cfg.DasAPINodes, cNFTTargetType, solana.CNFTMethodList)
 
 	return nil
 }

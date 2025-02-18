@@ -40,9 +40,9 @@ type (
 		getSlotTime                time.Time
 		httpClient                 *http.Client
 		rpcClient                  *rpc.Client
-		recentlyUsedEndpointTarget *proxyTarget
+		recentlyUsedEndpointTarget *ProxyTarget
 		predefinedTransport        predefinedTransport
-		targets                    []*proxyTarget
+		targets                    []*ProxyTarget
 
 		maxAttempts    int
 		targetsCounter int
@@ -58,7 +58,7 @@ type (
 	}
 )
 
-func NewPublicTransport(defaultSolanaURL []configtypes.SolanaNode, wsTargets []configtypes.WrappedURL, isMainnet bool) (*publicTransport, error) {
+func NewPublicTransport(defaultSolanaURL []configtypes.SolanaNode, wsTargets []configtypes.SolanaNode, isMainnet bool) (*publicTransport, error) {
 	pt := &publicTransport{
 		httpClient:  &http.Client{Timeout: echoUtil.APIWriteTimeout - time.Second},
 		maxAttempts: 10,
@@ -72,13 +72,13 @@ func NewPublicTransport(defaultSolanaURL []configtypes.SolanaNode, wsTargets []c
 		pt.rpcClient = rpc.New(rpc.DevNet_RPC)
 	}
 
-	predefinedTransportTargets := make([]*proxyTarget, 0, len(defaultSolanaURL))
+	predefinedTransportTargets := make([]*ProxyTarget, 0, len(defaultSolanaURL))
 	for i := range defaultSolanaURL {
-		predefinedTransportTargets = append(predefinedTransportTargets, newProxyTarget(models.URLWithMethods{URL: defaultSolanaURL[i].URL.String()}, 0, defaultSolanaURL[i].Provider, defaultSolanaURL[i].NodeType))
+		predefinedTransportTargets = append(predefinedTransportTargets, NewProxyTarget(models.URLWithMethods{URL: defaultSolanaURL[i].URL.String()}, 0, defaultSolanaURL[i].Provider, defaultSolanaURL[i].NodeType))
 	}
 	pt.targets = predefinedTransportTargets
 	pt.predefinedTransport = predefinedTransport{
-		t: transport.NewDefaultProxyTransport(configtypes.Chain{WSHosts: wsTargets}),
+		t: NewDefaultProxyTransport(wsTargets),
 	}
 
 	return pt, nil
@@ -115,7 +115,7 @@ func (*publicTransportWithContext) isMutedErr(err, contextErr error) (mute, isAv
 func (ptc *publicTransportWithContext) sendHTTPReq() (respBody []byte, err error) {
 	var (
 		i               int
-		target          *proxyTarget
+		target          *ProxyTarget
 		startTime       time.Time
 		reqMethods      = ptc.c.GetReqMethods()
 		reqType         = ptc.c.GetTokenType()
@@ -213,9 +213,9 @@ outerLoop:
 	return respBody, err
 }
 
-func (pt *publicTransport) getNextTarget(reqMethods []string, tokenType models.TokenType, c *echoUtil.CustomContext) *proxyTarget {
+func (pt *publicTransport) getNextTarget(reqMethods []string, tokenType models.TokenType, c *echoUtil.CustomContext) *ProxyTarget {
 	var (
-		candidate               *proxyTarget
+		candidate               *ProxyTarget
 		candidateFailedReqs     uint64
 		candidateLastRespTime   int64
 		avaliableRecentEndpoint bool
@@ -260,7 +260,7 @@ func (pt *publicTransport) getNextTarget(reqMethods []string, tokenType models.T
 	return candidate
 }
 
-func (pt *publicTransport) NextAvailableTarget(reqMethods []string, reqType models.TokenType, c *echoUtil.CustomContext) *proxyTarget {
+func (pt *publicTransport) NextAvailableTarget(reqMethods []string, reqType models.TokenType, c *echoUtil.CustomContext) *ProxyTarget {
 	target := pt.getNextTarget(reqMethods, reqType, c)
 	if target != nil {
 		return target
