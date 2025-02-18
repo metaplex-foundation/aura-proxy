@@ -27,8 +27,8 @@ func (p ProxyConfig) Validate(possibleChains map[string]map[string]uint) error {
 }
 
 func (s SolanaConfig) Validate() error { //nolint:gocritic
-	for i := range s.DasAPIURL {
-		err := s.DasAPIURL[i].URL.Validate()
+	for i := range s.DasAPINodes {
+		err := s.DasAPINodes[i].URL.Validate()
 		if err != nil {
 			return err
 		}
@@ -41,8 +41,8 @@ func (s SolanaConfig) Validate() error { //nolint:gocritic
 		}
 	}
 
-	for i := range s.WSHostURL {
-		err := s.WSHostURL[i].URL.Validate()
+	for i := range s.WSHostNodes {
+		err := s.WSHostNodes[i].URL.Validate()
 		if err != nil {
 			return err
 		}

@@ -141,7 +141,7 @@ func (p *proxy) initAdapters(cfg *config.Config) error { //nolint:gocritic
 		p.adapters[n] = solanaAdapter
 	}
 	// TODO: refactor
-	if len(cfg.Proxy.Eclipse.DasAPIURL) > 0 && len(cfg.Proxy.Eclipse.BasicRouteNodes) > 0 {
+	if len(cfg.Proxy.Eclipse.DasAPINodes) > 0 && len(cfg.Proxy.Eclipse.BasicRouteNodes) > 0 {
 		eclipseAdapter, err := solana.NewEclipseAdapter(&cfg.Proxy.Eclipse, cfg.Proxy.IsMainnet)
 		if err != nil {
 			return fmt.Errorf("NewEclipseAdapter: %s", err)

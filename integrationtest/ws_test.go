@@ -46,7 +46,7 @@ func TestProxyWebSocketIntegration(t *testing.T) {
 
 			// For Solana:
 			Solana: configtypes.SolanaConfig{
-				WSHostURL: []configtypes.WrappedURL{u}, // If your solana adapter uses WS
+				WSHostNodes: []configtypes.WrappedURL{u}, // If your solana adapter uses WS
 			},
 		},
 		Service: configtypes.ServiceConfig{
