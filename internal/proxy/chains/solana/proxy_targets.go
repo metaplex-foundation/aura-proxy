@@ -11,7 +11,7 @@ import (
 )
 
 type (
-	proxyTarget struct {
+	ProxyTarget struct {
 		availableMethods map[string]targetRestriction
 		provider         string
 		targetType       solana.NodeType
@@ -37,8 +37,8 @@ const (
 	noFullHistoryPenalty      = 1
 )
 
-func newProxyTarget(urlWithMethods models.URLWithMethods, reqLimit uint64, provider string, targetType solana.NodeType) *proxyTarget {
-	pt := proxyTarget{
+func NewProxyTarget(urlWithMethods models.URLWithMethods, reqLimit uint64, provider string, targetType solana.NodeType) *ProxyTarget {
+	pt := ProxyTarget{
 		url:              urlWithMethods.URL,
 		reqLimit:         reqLimit,
 		provider:         provider,
@@ -55,7 +55,7 @@ func newProxyTarget(urlWithMethods models.URLWithMethods, reqLimit uint64, provi
 	return &pt
 }
 
-func (t *proxyTarget) isAvailable(reqMethods []string, reqType models.TokenType, mainnetSlot int64, getSlotTime time.Time, c *echo.CustomContext) (isAvailable bool, failedReqs uint64, lastRespTime int64) {
+func (t *ProxyTarget) isAvailable(reqMethods []string, reqType models.TokenType, mainnetSlot int64, getSlotTime time.Time, c *echo.CustomContext) (isAvailable bool, failedReqs uint64, lastRespTime int64) {
 	currentWindow, timeNow := getCurrentTimeWindow()
 
 	t.mx.RLock()
@@ -98,7 +98,7 @@ func (t *proxyTarget) isAvailable(reqMethods []string, reqType models.TokenType,
 
 	return true, failedReqs, lastRespTime
 }
-func (t *proxyTarget) UpdateStats(success bool, reqMethods []string, responseTimeMs, slotAmount int64) {
+func (t *ProxyTarget) UpdateStats(success bool, reqMethods []string, responseTimeMs, slotAmount int64) {
 	currentWindow, _ := getCurrentTimeWindow()
 
 	t.mx.Lock()

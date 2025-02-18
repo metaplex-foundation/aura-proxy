@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"slices"
 
+	"github.com/adm-metaex/aura-api/pkg/types"
 	"github.com/labstack/echo/v4"
 
 	"aura-proxy/internal/pkg/chains/solana"
@@ -126,10 +127,13 @@ func (p *proxy) RequestPrepareMiddleware() echo.MiddlewareFunc {
 				return echo.NewHTTPError(http.StatusBadRequest, util.ErrChainNotSupported)
 			}
 			if c.IsWebSocket() {
+				cc.SetRequestType(types.Websocket)
+				cc.SetChainName(adapter.GetName())
 				return next(c)
 			}
 
 			// common prepare
+			// also here we set chain name, taken from adapter, to custom context
 			err := transport.PreparePostRequest(cc, adapter.GetName())
 			if err != nil {
 				if errors.Is(err, transport.ErrInvalidContentType) {
@@ -160,12 +164,15 @@ func (p *proxy) RequestPrepareMiddleware() echo.MiddlewareFunc {
 				}
 			}
 			cc.SetIsDASRequest(isDasRequest)
+
 			if isGPARequest {
-				cc.SetChainName(solana.GetProgramAccounts)
+				cc.SetRequestType(types.GPA)
+			} else if isDasRequest {
+				cc.SetRequestType(types.DAS)
+			} else {
+				cc.SetRequestType(types.RPC)
 			}
-			if isDasRequest {
-				cc.SetChainName(fmt.Sprintf("%s-das", cc.GetChainName()))
-			}
+			// TODO: in future here will be added SWQOS
 
 			return next(c)
 		}
