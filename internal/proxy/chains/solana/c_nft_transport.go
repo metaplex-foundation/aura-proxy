@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"aura-proxy/internal/pkg/configtypes"
+	"aura-proxy/internal/pkg/models"
 	"aura-proxy/internal/pkg/transport"
-	"aura-proxy/internal/pkg/util"
 	"aura-proxy/internal/pkg/util/balancer"
 	echoUtil "aura-proxy/internal/pkg/util/echo"
 )
@@ -14,16 +14,21 @@ import (
 type (
 	CNFTTransport struct {
 		httpClient  *http.Client
-		auraTargets *balancer.RoundRobin[string]
+		auraTargets *balancer.RoundRobin[*ProxyTarget]
 		methodList  map[string]uint
 		targetType  string
 	}
 )
 
-func NewCNFTransport(hosts []configtypes.WrappedURL, targetType string, methodList map[string]uint) *CNFTTransport {
+func NewCNFTransport(hosts []configtypes.SolanaNode, targetType string, methodList map[string]uint) *CNFTTransport {
+	predefinedTransportTargets := make([]*ProxyTarget, 0, len(hosts))
+	for i := range hosts {
+		predefinedTransportTargets = append(predefinedTransportTargets, NewProxyTarget(models.URLWithMethods{URL: hosts[i].URL.String()}, 0, hosts[i].Provider, hosts[i].NodeType))
+	}
+
 	return &CNFTTransport{
 		httpClient:  &http.Client{Timeout: echoUtil.APIWriteTimeout - time.Second},
-		auraTargets: balancer.NewRoundRobin(util.Map(hosts, func(t configtypes.WrappedURL) string { return t.String() })),
+		auraTargets: balancer.NewRoundRobin(predefinedTransportTargets),
 		targetType:  targetType,
 		methodList:  methodList,
 	}
@@ -54,8 +59,9 @@ func (p *CNFTTransport) selectTargetAndSendReq(c *echoUtil.CustomContext) (respB
 			break
 		}
 		target := p.auraTargets.GetByCounter(counter)
+		c.SetProvider(target.provider)
 		p.auraTargets.IncCounter()
-		respBody, statusCode, err = transport.MakeHTTPRequest(c, p.httpClient, http.MethodPost, target, false)
+		respBody, statusCode, err = transport.MakeHTTPRequest(c, p.httpClient, http.MethodPost, target.url, false)
 		if err == nil {
 			return respBody, statusCode, nil
 		}

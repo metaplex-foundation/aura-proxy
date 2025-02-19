@@ -52,6 +52,7 @@ type CustomContext struct {
 	arrayRequested bool
 	isPartnerNode  bool
 
+	requestType  types.RequestType
 	isDASRequest bool
 	isGPARequest bool
 }
@@ -288,35 +289,73 @@ func (c *CustomContext) GetIsPartnerNode() bool {
 }
 
 func (c *CustomContext) GetReqPerSecond() int32 {
-	switch {
-	case c.chainName == solana.DasChainName:
-		return c.subscription.GetPricing().GetAuraDas().GetRequestsPerSecond()
-	case c.chainName == solana.EclipseDasChainName:
-		return c.subscription.GetPricing().GetEclipseDas().GetRequestsPerSecond()
-	case !c.isDASRequest && !c.isGPARequest && c.chainName == solana.ChainName:
-		return c.subscription.GetPricing().GetSolanaRpc().GetRequestsPerSecond()
-	case !c.isDASRequest && !c.isGPARequest && c.chainName == solana.EclipseChainName:
-		return c.subscription.GetPricing().GetEclipseRpc().GetRequestsPerSecond()
-	case c.isGPARequest:
-		return c.subscription.GetPricing().GetGetProgramAccounts().GetRequestsPerSecond()
-	default:
+	if c.chainName == solana.ChainName {
+		switch c.requestType {
+		case types.RPC:
+			return c.subscription.GetPricing().GetSolanaRpc().GetRequestsPerSecond()
+		case types.DAS:
+			return c.subscription.GetPricing().GetSolanaDas().GetRequestsPerSecond()
+		case types.GPA:
+			return c.subscription.GetPricing().GetSolanaGetProgramAccounts().GetRequestsPerSecond()
+		case types.Websocket:
+			return c.subscription.GetPricing().GetSolanaWebsocket().GetRequestsPerSecond()
+		case types.SWQOS:
+			return c.subscription.GetPricing().GetSolanaSwqos().GetRequestsPerSecond()
+		default:
+			return 10
+		}
+	} else if c.chainName == solana.EclipseChainName {
+		switch c.requestType {
+		case types.RPC:
+			return c.subscription.GetPricing().GetEclipseRpc().GetRequestsPerSecond()
+		case types.DAS:
+			return c.subscription.GetPricing().GetEclipseDas().GetRequestsPerSecond()
+		case types.GPA:
+			return c.subscription.GetPricing().GetEclipseGetProgramAccounts().GetRequestsPerSecond()
+		case types.Websocket:
+			return c.subscription.GetPricing().GetEclipseWebsocket().GetRequestsPerSecond()
+		case types.SWQOS:
+			return c.subscription.GetPricing().GetEclipseSwqos().GetRequestsPerSecond()
+		default:
+			return 10
+		}
+	} else {
 		return 10
 	}
 }
 
 func (c *CustomContext) GetReqCost() int64 {
-	switch {
-	case c.chainName == solana.DasChainName:
-		return c.subscription.GetPricing().GetAuraDas().GetPriceMplx()
-	case c.chainName == solana.EclipseDasChainName:
-		return c.subscription.GetPricing().GetEclipseDas().GetPriceMplx()
-	case !c.isDASRequest && !c.isGPARequest && c.chainName == solana.ChainName:
-		return c.subscription.GetPricing().GetSolanaRpc().GetPriceMplx()
-	case !c.isDASRequest && !c.isGPARequest && c.chainName == solana.EclipseChainName:
-		return c.subscription.GetPricing().GetEclipseRpc().GetPriceMplx()
-	case c.isGPARequest:
-		return c.subscription.GetPricing().GetGetProgramAccounts().GetPriceMplx()
-	default:
+	if c.chainName == solana.ChainName {
+		switch c.requestType {
+		case types.RPC:
+			return c.subscription.GetPricing().GetSolanaRpc().GetPriceMplx()
+		case types.DAS:
+			return c.subscription.GetPricing().GetSolanaDas().GetPriceMplx()
+		case types.GPA:
+			return c.subscription.GetPricing().GetSolanaGetProgramAccounts().GetPriceMplx()
+		case types.Websocket:
+			return c.subscription.GetPricing().GetSolanaWebsocket().GetPriceMplx()
+		case types.SWQOS:
+			return c.subscription.GetPricing().GetSolanaSwqos().GetPriceMplx()
+		default:
+			return 10
+		}
+	} else if c.chainName == solana.EclipseChainName {
+		switch c.requestType {
+		case types.RPC:
+			return c.subscription.GetPricing().GetEclipseRpc().GetPriceMplx()
+		case types.DAS:
+			return c.subscription.GetPricing().GetEclipseDas().GetPriceMplx()
+		case types.GPA:
+			return c.subscription.GetPricing().GetEclipseGetProgramAccounts().GetPriceMplx()
+		case types.Websocket:
+			return c.subscription.GetPricing().GetEclipseWebsocket().GetPriceMplx()
+		case types.SWQOS:
+			return c.subscription.GetPricing().GetEclipseSwqos().GetPriceMplx()
+		default:
+			return 10
+		}
+	} else {
 		return 10
 	}
 }
@@ -353,4 +392,11 @@ func (c *CustomContext) SetProvider(provider string) {
 }
 func (c *CustomContext) GetProvider() string {
 	return c.provider
+}
+
+func (c *CustomContext) SetRequestType(requestType types.RequestType) {
+	c.requestType = requestType
+}
+func (c *CustomContext) GetRequestType() types.RequestType {
+	return c.requestType
 }
