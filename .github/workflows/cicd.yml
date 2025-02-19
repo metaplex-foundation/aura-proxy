@@ -1,14 +1,25 @@
 name: Aura-Proxy
 
 on:
+  workflow_dispatch:
   push:
     branches:
-      - main
+      - develop
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   ci:
     name: Continuous Integration
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Checkout
