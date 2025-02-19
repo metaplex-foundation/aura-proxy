@@ -65,7 +65,7 @@ func main() {
 	util.GracefulStop(app.WaitGroup(), waitTimeout, func() {
 		err = app.Stop()
 		if err != nil {
-			log.Logger.Proxy.Errorf(err.Error())
+			log.Logger.Proxy.Error(err.Error())
 		}
 	})
 }
