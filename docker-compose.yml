@@ -2,7 +2,7 @@
 services:
   aura-proxy:
     container_name: aura-proxy
-    image: ghcr.io/adm-metaex/aura-proxy/aura-proxy:v0.0.1-7abd82e
+    image: ghcr.io/adm-metaex/aura-proxy/aura-proxy:develop-f958f82
     restart: unless-stopped
     tty: true
     ports:
@@ -16,7 +16,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2"
+          cpus: "0.75"
           memory: 7000M
     command:
       - -log=debug
