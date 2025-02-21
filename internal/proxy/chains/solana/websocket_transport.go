@@ -37,7 +37,10 @@ func NewDefaultProxyTransport(hosts []configtypes.SolanaNode) *ProxyTransport {
 }
 
 func (p *ProxyTransport) DefaultProxyWS(c echo.Context) (err error) {
-	target := p.wsTargets.GetNext()
+	target, _, err := p.wsTargets.GetNext(nil)
+	if err != nil {
+		return err
+	}
 	if target == nil {
 		return errors.New("empty target")
 	}
@@ -67,7 +70,10 @@ func (p *ProxyTransport) DefaultProxyWS(c echo.Context) (err error) {
 }
 
 func (p *ProxyTransport) ProxySSE(c echo.Context) (err error) {
-	target := p.wsTargets.GetNext()
+	target, _, err := p.wsTargets.GetNext(nil)
+	if err != nil {
+		return err
+	}
 	if target == nil {
 		return errors.New("empty target")
 	}

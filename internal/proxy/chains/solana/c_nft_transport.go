@@ -1,42 +1,49 @@
 package solana
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
-	"aura-proxy/internal/pkg/configtypes"
-	"aura-proxy/internal/pkg/models"
 	"aura-proxy/internal/pkg/transport"
 	"aura-proxy/internal/pkg/util/balancer"
 	echoUtil "aura-proxy/internal/pkg/util/echo"
 )
 
+// HTTPRequester interface defines how to make HTTP requests.
+type HTTPRequester interface {
+	DoRequest(c *echoUtil.CustomContext, targetURL string) (respBody []byte, statusCode int, err error)
+}
+
+// RealHTTPRequester is the production implementation of HTTPRequester.
+type RealHTTPRequester struct{}
+
+func (r *RealHTTPRequester) DoRequest(c *echoUtil.CustomContext, targetURL string) (respBody []byte, statusCode int, err error) {
+	return transport.MakeHTTPRequest(c, &http.Client{Timeout: echoUtil.APIWriteTimeout - time.Second}, http.MethodPost, targetURL, false)
+}
+
 type (
 	CNFTTransport struct {
-		httpClient  *http.Client
-		auraTargets *balancer.RoundRobin[*ProxyTarget]
-		methodList  map[string]uint
-		targetType  string
+		httpRequester  HTTPRequester // Use the interface
+		targetSelector balancer.TargetSelector[*ProxyTarget]
+		methodList     map[string]uint
+		targetType     string
 	}
 )
 
-func NewCNFTransport(hosts []configtypes.SolanaNode, targetType string, methodList map[string]uint) *CNFTTransport {
-	predefinedTransportTargets := make([]*ProxyTarget, 0, len(hosts))
-	for i := range hosts {
-		predefinedTransportTargets = append(predefinedTransportTargets, NewProxyTarget(models.URLWithMethods{URL: hosts[i].URL.String()}, 0, hosts[i].Provider, hosts[i].NodeType))
-	}
-
+func NewCNFTransport(targetType string, methodList map[string]uint, targetSelector balancer.TargetSelector[*ProxyTarget], requester HTTPRequester) *CNFTTransport {
 	return &CNFTTransport{
-		httpClient:  &http.Client{Timeout: echoUtil.APIWriteTimeout - time.Second},
-		auraTargets: balancer.NewRoundRobin(predefinedTransportTargets),
-		targetType:  targetType,
-		methodList:  methodList,
+		httpRequester:  requester, // Inject the requester
+		targetSelector: targetSelector,
+		targetType:     targetType,
+		methodList:     methodList,
 	}
 }
 
 func (p *CNFTTransport) isAvailable() bool {
-	return p.auraTargets.IsAvailable()
+	return p.targetSelector.IsAvailable()
 }
+
 func (p *CNFTTransport) canHandle(methods []string) bool {
 	if len(methods) == 0 {
 		return false
@@ -51,30 +58,34 @@ func (p *CNFTTransport) canHandle(methods []string) bool {
 	return true
 }
 
-func (p *CNFTTransport) selectTargetAndSendReq(c *echoUtil.CustomContext) (respBody []byte, statusCode int, err error) {
-	availableAuraTries := p.auraTargets.GetTargetsCount()
-	counter := p.auraTargets.GetCounter()
-	for {
-		if availableAuraTries <= 0 {
-			break
+func (p *CNFTTransport) sendRequestWithRetries(c *echoUtil.CustomContext) (respBody []byte, statusCode int, err error) {
+	var (
+		target *ProxyTarget
+		index  int
+	)
+
+	exclude := make([]int, 0)
+	for i := 0; i < p.targetSelector.GetTargetsCount(); i++ {
+		target, index, err = p.targetSelector.GetNext(exclude)
+		if err != nil {
+			return nil, http.StatusServiceUnavailable, fmt.Errorf("no available targets: %w", err)
 		}
-		target := p.auraTargets.GetByCounter(counter)
 		c.SetProvider(target.provider)
-		p.auraTargets.IncCounter()
-		respBody, statusCode, err = transport.MakeHTTPRequest(c, p.httpClient, http.MethodPost, target.url, false)
+
+		respBody, statusCode, err = p.httpRequester.DoRequest(c, target.url) // Use the injected requester
 		if err == nil {
 			return respBody, statusCode, nil
 		}
-		counter++
-		availableAuraTries--
+		exclude = append(exclude, index) // Exclude the failed target
 	}
-	return
+
+	return nil, http.StatusServiceUnavailable, fmt.Errorf("all targets failed")
 }
 
 func (p *CNFTTransport) SendRequest(c *echoUtil.CustomContext) (respBody []byte, statusCode int, err error) {
 	startTime := time.Now()
 
-	respBody, statusCode, err = p.selectTargetAndSendReq(c)
+	respBody, statusCode, err = p.sendRequestWithRetries(c)
 	transport.ResponsePostHandling(c, err, p.targetType, 1, time.Since(startTime).Milliseconds())
 
 	return respBody, statusCode, err
