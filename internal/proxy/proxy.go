@@ -133,14 +133,18 @@ func InitProxy(ctx context.Context, cancel context.CancelFunc, cfg config.Config
 }
 
 func (p *proxy) initAdapters(cfg *config.Config) error { //nolint:gocritic
-	solanaAdapter, err := solana.NewSolanaAdapter(&cfg.Proxy.Solana, cfg.Proxy.IsMainnet)
-	if err != nil {
-		return fmt.Errorf("NewSolanaAdapter: %s", err)
+	// Conditionally initialize SolanaAdapter.
+	if len(cfg.Proxy.Solana.BasicRouteNodes) > 0 || len(cfg.Proxy.Solana.WSHostNodes) > 0 || len(cfg.Proxy.Solana.DasAPINodes) > 0 {
+		solanaAdapter, err := solana.NewSolanaAdapter(&cfg.Proxy.Solana, cfg.Proxy.IsMainnet)
+		if err != nil {
+			return fmt.Errorf("NewSolanaAdapter: %s", err)
+		}
+		for _, n := range solanaAdapter.GetHostNames() {
+			p.adapters[n] = solanaAdapter
+		}
 	}
-	for _, n := range solanaAdapter.GetHostNames() {
-		p.adapters[n] = solanaAdapter
-	}
-	// TODO: refactor
+
+	// Conditionally initialize EclipseAdapter.
 	if len(cfg.Proxy.Eclipse.DasAPINodes) > 0 && len(cfg.Proxy.Eclipse.BasicRouteNodes) > 0 {
 		eclipseAdapter, err := solana.NewEclipseAdapter(&cfg.Proxy.Eclipse, cfg.Proxy.IsMainnet)
 		if err != nil {
