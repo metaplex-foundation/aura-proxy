@@ -43,7 +43,7 @@ func NewLoggerMiddleware(saveLog func(s *proto.Stat), isMainnet bool) echo.Middl
 			saveLog(buildStatStruct(cc.GetReqID(), v.Status, v.Latency.Milliseconds(), endpoint,
 				cc.GetProxyAttempts(), cc.GetProxyResponseTime(), cc.GetReqMethod(), cc.GetRPCError(), v.UserAgent,
 				cc.GetStatsAdditionalData(), cc.GetUserInfo().GetUser(), cc.GetChainName(), cc.GetAPIToken(), cc.GetProvider(),
-				v.ResponseSize, cc.GetCreditsUsed(), cc.GetTargetType(), isMainnet, cc.GetUserInfo().SubscriptionId, cc.GetRequestType()))
+				v.ResponseSize, cc.GetCreditsUsed(), cc.GetTargetType(), isMainnet, cc.GetUserInfo().SubscriptionId, cc.GetRequestType(), cc.GetReqTime()))
 
 			m := cc.GetMetrics()
 			m.AddCheckpoint(cp)
@@ -67,7 +67,7 @@ func NewLoggerMiddleware(saveLog func(s *proto.Stat), isMainnet bool) echo.Middl
 
 func buildStatStruct(requestUUID string, statusCode int, latency int64, endpoint string, attempts int, responseTime int64,
 	rpcMethod string, rpcErrorCode int, userAgent, statsAdditionalData, userUID, chainName, token, provider string,
-	responseSizeBytes, methodCost int64, targetType string, isMainnet bool, subscription_id int64, requestType types.RequestType) *proto.Stat {
+	responseSizeBytes, methodCost int64, targetType string, isMainnet bool, subscription_id int64, requestType types.RequestType, requestTime int64) *proto.Stat {
 	return &proto.Stat{
 		UserUid:           userUID,
 		TokenUuid:         token,
@@ -81,7 +81,7 @@ func buildStatStruct(requestUUID string, statusCode int, latency int64, endpoint
 		UserAgent:         userAgent,
 		RpcMethod:         rpcMethod,
 		RpcRequestData:    statsAdditionalData,
-		Timestamp:         timestamppb.New(time.Now().UTC()),
+		Timestamp:         timestamppb.New(time.Unix(requestTime, 0).UTC()),
 		Chain:             chainName,
 		ResponseSizeBytes: responseSizeBytes,
 		TargetType:        targetType,
