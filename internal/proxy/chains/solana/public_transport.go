@@ -201,10 +201,10 @@ outerLoop:
 			err = echo.NewHTTPError(http.StatusInternalServerError, util.ExtraNodeNoAvailableTargetsErrorResponse)
 		}
 	}
-	log.Logger.Proxy.Debugf("Request sent to: %s", target.provider)
 
 	targetType := publicRPCTargetType
 	if target != nil {
+		log.Logger.Proxy.Debugf("Request sent to: %s", target.provider)
 		targetType = target.provider
 	}
 

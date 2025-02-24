@@ -55,6 +55,8 @@ type CustomContext struct {
 	requestType  types.RequestType
 	isDASRequest bool
 	isGPARequest bool
+
+	requestTime int64
 }
 
 func CustomContextMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
@@ -88,6 +90,12 @@ func RequestTimeoutMiddleware(skipper middleware.Skipper) echo.MiddlewareFunc {
 	}
 }
 
+func (c *CustomContext) SetReqTime(tm int64) {
+	c.requestTime = tm
+}
+func (c *CustomContext) GetReqTime() int64 {
+	return c.requestTime
+}
 func (c *CustomContext) SetReqMethods(reqMethods []string) {
 	c.reqMethods = reqMethods
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"time"
 
 	"github.com/adm-metaex/aura-api/pkg/types"
 	"github.com/labstack/echo/v4"
@@ -121,6 +122,8 @@ func (p *proxy) RequestPrepareMiddleware() echo.MiddlewareFunc {
 			cp := util.NewRuntimeCheckpoint("RequestPrepareMiddleware")
 			cc := c.(*echoUtil.CustomContext) //nolint:errcheck
 			defer cc.GetMetrics().AddCheckpoint(cp)
+
+			cc.SetReqTime(time.Now().UTC().Unix())
 
 			adapter, ok := p.adapters[c.Request().Host]
 			if !ok {
