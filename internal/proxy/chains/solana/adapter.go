@@ -111,7 +111,7 @@ func (s *Adapter) initTransports(cfg *configtypes.SolanaConfig) (err error) { //
 
 	// Create publicTransport only if there are BasicRouteNodes.
 	if len(allTargets) > 0 {
-		s.publicTransport, err = NewPublicTransport(allTargets, cfg.WSHostNodes, s.isMainnet) // Use s.isMainnet
+		s.publicTransport, err = NewPublicTransport(allTargets, s.isMainnet) // Use s.isMainnet
 		if err != nil {
 			return fmt.Errorf("NewPublicTransport: %s", err)
 		}

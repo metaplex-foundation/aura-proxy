@@ -12,7 +12,6 @@ import (
 	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/labstack/echo/v4"
 
-	"aura-proxy/internal/pkg/configtypes"
 	"aura-proxy/internal/pkg/log"
 	"aura-proxy/internal/pkg/metrics"
 	"aura-proxy/internal/pkg/models"
@@ -57,7 +56,7 @@ type (
 	}
 )
 
-func NewPublicTransport(targets []*ProxyTarget, wsTargets []configtypes.SolanaNode, isMainnet bool) (*publicTransport, error) {
+func NewPublicTransport(targets []*ProxyTarget, isMainnet bool) (*publicTransport, error) {
 	if len(targets) == 0 {
 		return nil, fmt.Errorf("must provide at least one target")
 	}
