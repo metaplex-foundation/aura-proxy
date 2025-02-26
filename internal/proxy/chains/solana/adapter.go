@@ -24,12 +24,14 @@ var (
 		"aura-devnet.metaplex.com",
 		"mainnet-aura.metaplex.com",
 		"devnet-aura.metaplex.com",
-		"localhost:2011", // for local tests
-		"127.0.0.1:2011", // for local tests
+		"aura-dev.metaplex.com", // dev environment
+		"localhost:2011",        // for local tests
+		"127.0.0.1:2011",        // for local tests
 	}
 	eclipseChainHosts = []string{
 		"aura-eclipse-mainnet.metaplex.com",
 		"eclipse-mainnet-aura.metaplex.com",
+		"aura-ecl-dev.metaplex.com", // dev environment
 		//"localhost:2011", // for local tests
 		//"127.0.0.1:2011", // for local tests
 	}
