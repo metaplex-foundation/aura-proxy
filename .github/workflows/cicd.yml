@@ -1,25 +1,37 @@
 name: Aura-Proxy
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - develop
+      - feature/*
+      - fix/*
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ci:
     name: Continuous Integration
+    if: >
+      (github.event_name == 'push' && (
+        startsWith(github.ref, 'refs/heads/develop') ||
+        startsWith(github.ref, 'refs/heads/main') ||
+        startsWith(github.ref, 'refs/tags/') ||
+        ((startsWith(github.ref, 'refs/heads/feature/') || startsWith(github.ref, 'refs/heads/fix/')) && contains(github.event.head_commit.message, 'deploy'))
+      ))
+      || (github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: true
     outputs:
-      version: ${{ steps.version.outputs.version }}
+      version: ${{ steps.define_vars.outputs.version }}
 
     steps:
       - name: Checkout
@@ -28,14 +40,27 @@ jobs:
           fetch-depth: 0
 
       - name: Define Application Variables
+        id: define_vars
         run: |
           echo "APP=$(basename -s .git $(git remote get-url origin))" >> $GITHUB_ENV
-          echo "VERSION=$(git describe --tags --abbrev=0)-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          ver=$(
+            [[ "$GITHUB_REF" == refs/tags/* ]] && \
+              echo "${GITHUB_REF#refs/tags/}" || \
+            ( 
+              branch="${GITHUB_REF#refs/heads/}" && \
+              branch=$(echo "$branch" | sed 's/\//-/g') && \
+              sha=$(git rev-parse --short HEAD) && \
+              echo "${branch}-${sha}"
+            )
+          )
+          echo "Version: $ver"
+          echo "version=${ver}" >> "$GITHUB_OUTPUT"
+          echo "VERSION=${ver}" >> "$GITHUB_ENV"
 
       - name: Notify Start CI
         uses: ./.github/actions/telegram
         with:
-          message: "🚀 CI started for <b>${{ env.APP }}</b> version <b>${{ env.VERSION }}</b>"
+          message: "🚀 CI started by <b>${{ github.actor }}</b> for <b>${{ env.APP }}</b> version <b>${{ env.VERSION }}</b>"
           telegram_bot_token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           telegram_chat_id: ${{ secrets.TELEGRAM_CHAT_ID }}
 
@@ -76,7 +101,8 @@ jobs:
         env:
           REGISTRY: ghcr.io/${{ github.repository_owner }}
           RO_GITHUB_PAT: ${{ secrets.RO_GITHUB_PAT }}
-        run: make image push
+          VERSION: ${{ env.VERSION }}
+        run: make image push VERSION="$VERSION"
 
       - name: Notify Build Complete
         if: success()
@@ -98,6 +124,8 @@ jobs:
     name: Continuous Deployment
     needs: ci
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout Repository
@@ -108,7 +136,7 @@ jobs:
       - name: Define Application Variables
         run: |
           echo "APP=$(basename -s .git $(git remote get-url origin))" >> $GITHUB_ENV
-          echo "VERSION=$(git describe --tags --abbrev=0)-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "VERSION=${{ needs.ci.outputs.version }}" >> $GITHUB_ENV
 
       - name: Notify Start CD
         uses: ./.github/actions/telegram
@@ -156,7 +184,7 @@ jobs:
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git commit -am "Update $APP version to $VERSION"
+          git commit -am "${{ github.actor }} update $APP version to $VERSION"
           git push
           
       - name: Checkout External Config Repository
@@ -181,7 +209,7 @@ jobs:
           curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage \
           -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
           -d parse_mode=HTML \
-          -d text="✅ CD complete. The <b>versions.yml</b> file has been successfully updated for <b>${{ env.APP }}</b> to version <b>${{ env.VERSION }}</b>."
+          -d text="✅ CD complete by <b>${{ github.actor }}</b>. The <b>versions.yml</b> file has been successfully updated for <b>${{ env.APP }}</b> to version <b>${{ env.VERSION }}</b>."
 
       - name: Notify CD Failed
         if: failure()
@@ -189,5 +217,5 @@ jobs:
           curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage \
           -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
           -d parse_mode=HTML \
-          -d text="❌ CD failed for <b>${{ env.APP }}</b> version <b>${{ env.VERSION }}</b>"
+          -d text="❌ CD failed. Triggered by <b>${{ github.actor }}</b> version <b>${{ env.VERSION }}</b>"
   
