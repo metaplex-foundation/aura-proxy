@@ -16,14 +16,14 @@ const flushInterval = time.Second * 30
 type RequestCounter struct {
 	wg       *sync.WaitGroup
 	auraAPI  auraProto.AuraClient
-	counters map[string]map[string]map[string]*auraProto.RequestsWithUsage
+	counters map[string]map[string]map[string]map[string]*auraProto.RequestsWithUsage
 	mx       sync.Mutex
 }
 
 func NewRequestCounter(ctx context.Context, wg *sync.WaitGroup, auraAPI auraProto.AuraClient) (r *RequestCounter) {
 	r = &RequestCounter{
 		wg:       wg,
-		counters: make(map[string]map[string]map[string]*auraProto.RequestsWithUsage), // providerID/chain/token/reqCount
+		counters: make(map[string]map[string]map[string]map[string]*auraProto.RequestsWithUsage), // providerID/chain/requestType/token/reqCount
 		mx:       sync.Mutex{},
 		auraAPI:  auraAPI,
 	}
@@ -41,7 +41,7 @@ func NewRequestCounter(ctx context.Context, wg *sync.WaitGroup, auraAPI auraProt
 	return r
 }
 
-func (r *RequestCounter) IncUserRequests(user *auraProto.UserWithTokens, currentReqCount int64, chain, token string, isMainnet bool) {
+func (r *RequestCounter) IncUserRequests(user *auraProto.UserWithTokens, currentReqCount int64, chain, token, requestType string, isMainnet bool) {
 	if user == nil {
 		return
 	}
@@ -53,25 +53,28 @@ func (r *RequestCounter) IncUserRequests(user *auraProto.UserWithTokens, current
 
 	r.mx.Lock()
 	if r.counters[userID] == nil {
-		r.counters[userID] = make(map[string]map[string]*auraProto.RequestsWithUsage)
+		r.counters[userID] = make(map[string]map[string]map[string]*auraProto.RequestsWithUsage)
 	}
 	if r.counters[userID][chain] == nil {
-		r.counters[userID][chain] = make(map[string]*auraProto.RequestsWithUsage)
+		r.counters[userID][chain] = make(map[string]map[string]*auraProto.RequestsWithUsage)
 	}
-	if r.counters[userID][chain][token] == nil {
-		r.counters[userID][chain][token] = &auraProto.RequestsWithUsage{
+	if r.counters[userID][chain][requestType] == nil {
+		r.counters[userID][chain][requestType] = make(map[string]*auraProto.RequestsWithUsage)
+	}
+	if r.counters[userID][chain][requestType][token] == nil {
+		r.counters[userID][chain][requestType][token] = &auraProto.RequestsWithUsage{
 			IsMainnet: isMainnet,
 		}
 	}
-	r.counters[userID][chain][token].Reqs++
-	r.counters[userID][chain][token].Usage += currentReqCount
+	r.counters[userID][chain][requestType][token].Reqs++
+	r.counters[userID][chain][requestType][token].Usage += currentReqCount
 	r.mx.Unlock()
 }
 
 func (r *RequestCounter) flush() (err error) {
 	r.mx.Lock()
 	counters := r.counters
-	r.counters = make(map[string]map[string]map[string]*auraProto.RequestsWithUsage)
+	r.counters = make(map[string]map[string]map[string]map[string]*auraProto.RequestsWithUsage)
 	r.mx.Unlock()
 
 	if len(counters) == 0 {
@@ -95,23 +98,29 @@ func (r *RequestCounter) flush() (err error) {
 	return err
 }
 
-func mapCountersToProto(counters map[string]map[string]map[string]*auraProto.RequestsWithUsage) *auraProto.IncreaseUserRequestsReq {
+func mapCountersToProto(counters map[string]map[string]map[string]map[string]*auraProto.RequestsWithUsage) *auraProto.IncreaseUserRequestsReq {
 	protoReq := &auraProto.IncreaseUserRequestsReq{
 		Reqs: make(map[string]*auraProto.UserRequestsByChain),
 	}
 
 	for user, chains := range counters {
 		userRequestsByChain := &auraProto.UserRequestsByChain{
-			Reqs: make(map[string]*auraProto.UserRequestsByToken),
+			Reqs: make(map[string]*auraProto.UserRequestsByRequestType),
 		}
-		for chain, tokens := range chains {
-			userRequestsByToken := &auraProto.UserRequestsByToken{
-				Reqs: make(map[string]*auraProto.RequestsWithUsage),
+		for chain, requestType := range chains {
+			userRequestsByType := &auraProto.UserRequestsByRequestType{
+				Reqs: make(map[string]*auraProto.UserRequestsByToken),
 			}
-			for token, count := range tokens {
-				userRequestsByToken.Reqs[token] = count
+			for requestType, token := range requestType {
+				userRequestsByToken := &auraProto.UserRequestsByToken{
+					Reqs: make(map[string]*auraProto.RequestsWithUsage),
+				}
+				for token, count := range token {
+					userRequestsByToken.Reqs[token] = count
+				}
+				userRequestsByType.Reqs[requestType] = userRequestsByToken
 			}
-			userRequestsByChain.Reqs[chain] = userRequestsByToken
+			userRequestsByChain.Reqs[chain] = userRequestsByType
 		}
 		protoReq.Reqs[user] = userRequestsByChain
 	}

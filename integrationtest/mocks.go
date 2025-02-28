@@ -15,7 +15,7 @@ func (t *testStatCollector) Add(s *auraProto.Stat) {}
 // IRequestCounter dummy
 type testRequestCounter struct{}
 
-func (t *testRequestCounter) IncUserRequests(user *auraProto.UserWithTokens, currentReqCount int64, chain, token string, isMainnet bool) {
+func (t *testRequestCounter) IncUserRequests(user *auraProto.UserWithTokens, currentReqCount int64, chain, token, requestType string, isMainnet bool) {
 	// no-op
 }
 

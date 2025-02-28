@@ -2,7 +2,7 @@ module aura-proxy
 
 go 1.24
 
-replace github.com/adm-metaex/aura-api => github.com/adm-metaex/aura-api v0.0.6-0.20250218162136-ad82036d10de
+replace github.com/adm-metaex/aura-api => github.com/adm-metaex/aura-api v0.0.6-0.20250227115022-6acb5d03c3ee
 
 require (
 	github.com/adm-metaex/aura-api v0.0.5

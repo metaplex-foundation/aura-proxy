@@ -109,7 +109,7 @@ func (p *proxy) ProxyPostRouteHandler(c echo.Context) error {
 	if err != nil {
 		return transport.HandleError(err)
 	}
-	p.requestCounter.IncUserRequests(cc.GetUserInfo(), cc.GetCreditsUsed(), cc.GetChainName(), cc.GetAPIToken(), p.isMainnet)
+	p.requestCounter.IncUserRequests(cc.GetUserInfo(), cc.GetCreditsUsed(), cc.GetChainName(), cc.GetAPIToken(), cc.GetRequestType().String(), p.isMainnet)
 
 	setServiceHeaders(cc.Response().Header(), cc)
 
