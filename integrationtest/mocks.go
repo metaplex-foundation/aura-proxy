@@ -15,7 +15,7 @@ func (t *testStatCollector) Add(s *auraProto.Stat) {}
 // IRequestCounter dummy
 type testRequestCounter struct{}
 
-func (t *testRequestCounter) IncUserRequests(user *auraProto.UserWithTokens, currentReqCount int64, chain, token string, isMainnet bool) {
+func (t *testRequestCounter) IncUserRequests(user *auraProto.UserWithTokens, currentReqCount int64, chain, token, requestType string, isMainnet bool) {
 	// no-op
 }
 
@@ -24,6 +24,14 @@ type testTokenChecker struct{}
 
 // CheckToken always returns a dummy user.
 func (t *testTokenChecker) CheckToken(cc *echoUtil.CustomContext, token string) (*auraProto.UserWithTokens, error) {
+	cc.SetSubscription(&auraProto.SubscriptionWithPricing{
+		Pricing: &auraProto.Pricing{
+			SolanaWebsocket: &auraProto.PricingModel{
+				RequestsPerSecond: 10,
+			},
+		},
+	})
+
 	return &auraProto.UserWithTokens{
 		User:           "dummyUserID",
 		SubscriptionId: 42, // or whatever test value you want

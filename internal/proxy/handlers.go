@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"time"
 
 	"github.com/adm-metaex/aura-api/pkg/types"
 	"github.com/labstack/echo/v4"
@@ -108,7 +109,7 @@ func (p *proxy) ProxyPostRouteHandler(c echo.Context) error {
 	if err != nil {
 		return transport.HandleError(err)
 	}
-	p.requestCounter.IncUserRequests(cc.GetUserInfo(), cc.GetCreditsUsed(), cc.GetChainName(), cc.GetAPIToken(), p.isMainnet)
+	p.requestCounter.IncUserRequests(cc.GetUserInfo(), cc.GetCreditsUsed(), cc.GetChainName(), cc.GetAPIToken(), cc.GetRequestType().String(), p.isMainnet)
 
 	setServiceHeaders(cc.Response().Header(), cc)
 
@@ -121,6 +122,8 @@ func (p *proxy) RequestPrepareMiddleware() echo.MiddlewareFunc {
 			cp := util.NewRuntimeCheckpoint("RequestPrepareMiddleware")
 			cc := c.(*echoUtil.CustomContext) //nolint:errcheck
 			defer cc.GetMetrics().AddCheckpoint(cp)
+
+			cc.SetReqTime(time.Now().UTC().Unix())
 
 			adapter, ok := p.adapters[c.Request().Host]
 			if !ok {

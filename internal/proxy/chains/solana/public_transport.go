@@ -12,7 +12,6 @@ import (
 	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/labstack/echo/v4"
 
-	"aura-proxy/internal/pkg/configtypes"
 	"aura-proxy/internal/pkg/log"
 	"aura-proxy/internal/pkg/metrics"
 	"aura-proxy/internal/pkg/models"
@@ -41,7 +40,6 @@ type (
 		httpClient                 *http.Client
 		rpcClient                  *rpc.Client
 		recentlyUsedEndpointTarget *ProxyTarget
-		predefinedTransport        predefinedTransport
 		targets                    []*ProxyTarget
 
 		maxAttempts    int
@@ -58,27 +56,22 @@ type (
 	}
 )
 
-func NewPublicTransport(defaultSolanaURL []configtypes.SolanaNode, wsTargets []configtypes.SolanaNode, isMainnet bool) (*publicTransport, error) {
+func NewPublicTransport(targets []*ProxyTarget, isMainnet bool) (*publicTransport, error) {
+	if len(targets) == 0 {
+		return nil, fmt.Errorf("must provide at least one target")
+	}
 	pt := &publicTransport{
 		httpClient:  &http.Client{Timeout: echoUtil.APIWriteTimeout - time.Second},
 		maxAttempts: 10,
 		currentSlot: mainnetPreSetUpSlot,
 		getSlotTime: time.Unix(mainnetPreSetUpGetSlotTimeUnix, 0),
 		rpcClient:   rpc.New(rpc.MainNetBeta_RPC),
+		targets:     targets,
 	}
 	if !isMainnet {
 		pt.currentSlot = devnetPreSetUpSlot
 		pt.getSlotTime = time.Unix(devnetPreSetUpGetSlotTimeUnix, 0)
 		pt.rpcClient = rpc.New(rpc.DevNet_RPC)
-	}
-
-	predefinedTransportTargets := make([]*ProxyTarget, 0, len(defaultSolanaURL))
-	for i := range defaultSolanaURL {
-		predefinedTransportTargets = append(predefinedTransportTargets, NewProxyTarget(models.URLWithMethods{URL: defaultSolanaURL[i].URL.String()}, 0, defaultSolanaURL[i].Provider, defaultSolanaURL[i].NodeType))
-	}
-	pt.targets = predefinedTransportTargets
-	pt.predefinedTransport = predefinedTransport{
-		t: NewDefaultProxyTransport(wsTargets),
 	}
 
 	return pt, nil
@@ -201,10 +194,10 @@ outerLoop:
 			err = echo.NewHTTPError(http.StatusInternalServerError, util.ExtraNodeNoAvailableTargetsErrorResponse)
 		}
 	}
-	log.Logger.Proxy.Debugf("Request sent to: %s", target.provider)
 
 	targetType := publicRPCTargetType
 	if target != nil {
+		log.Logger.Proxy.Debugf("Request sent to: %s", target.provider)
 		targetType = target.provider
 	}
 
