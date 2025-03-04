@@ -132,6 +132,9 @@ func (p *proxy) RequestPrepareMiddleware() echo.MiddlewareFunc {
 			if c.IsWebSocket() {
 				cc.SetRequestType(types.Websocket)
 				cc.SetChainName(adapter.GetName())
+				// we are save here to write any method names because
+				// for websocket processing len of this array is used only to calculate request cost
+				cc.SetReqMethods([]string{""})
 				return next(c)
 			}
 
