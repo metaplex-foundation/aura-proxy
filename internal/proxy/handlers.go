@@ -22,6 +22,8 @@ const (
 	headerNodeReqAttempts  = "X-NODE-REQ-ATTEMPTS"
 	headerNodeResponseTime = "X-NODE-RESPONSE-TIME"
 	headerNodeEndpoint     = "X-NODE-ENDPOINT"
+
+	websocketMethodName = "WSConnect"
 )
 
 func setServiceHeaders(h http.Header, cc *echoUtil.CustomContext) {
@@ -134,7 +136,7 @@ func (p *proxy) RequestPrepareMiddleware() echo.MiddlewareFunc {
 				cc.SetChainName(adapter.GetName())
 				// we are save here to write any method names because
 				// for websocket processing len of this array is used only to calculate request cost
-				cc.SetReqMethods([]string{""})
+				cc.SetReqMethods([]string{websocketMethodName})
 				return next(c)
 			}
 
