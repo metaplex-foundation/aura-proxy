@@ -3,6 +3,8 @@ package solana
 import (
 	"fmt"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 
 	"github.com/labstack/echo/v4"
 
@@ -15,7 +17,8 @@ import (
 )
 
 const (
-	cNFTTargetType = "c_nft"
+	cNFTTargetType      = "c_nft"
+	methodTargetType    = "method_based"
 )
 
 var (
@@ -38,9 +41,15 @@ var (
 )
 
 type Adapter struct {
+	// Legacy transports (for backward compatibility)
 	publicTransport  *publicTransport
 	cNFTTransport    *CNFTTransport
 	wsTransport      *wsTransport
+	
+	// New method-based transport and router
+	methodTransport  *MethodTransport
+	methodRouter     MethodRouter
+	
 	chainName        string
 	availableMethods map[string]uint
 	hostNames        []string
@@ -62,12 +71,44 @@ func newAdapter(cfg *configtypes.SolanaConfig, isMainnet bool, chainName string,
 		hostNames:        hostNames,
 		isMainnet:        isMainnet, // Store isMainnet
 	}
-	err := a.initTransports(cfg)
+	
+	// Initialize the method-based routing if it's available in config or legacy config
+	if hasAnyRoutingConfig(cfg) {
+		// Create a method router
+		methodRouter, err := NewMethodBasedRouter(cfg)
+		if err != nil {
+			return nil, fmt.Errorf("creating method router: %w", err)
+		}
+		
+		// Store the router for direct access to balancers
+		a.methodRouter = methodRouter
+		
+		// Create a method transport
+		a.methodTransport = NewMethodTransport(
+			methodTargetType,
+			methodRouter,
+			&RealHTTPRequester{},
+			10, // max attempts
+		)
+	}
+	
+	// Initialize legacy transports for backward compatibility
+	err := a.initLegacyTransports(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("initTransports: %s", err)
+		return nil, fmt.Errorf("initLegacyTransports: %w", err)
 	}
 
 	return a, nil
+}
+
+// hasAnyRoutingConfig checks if the configuration contains any routing configuration (method-based or legacy)
+func hasAnyRoutingConfig(cfg *configtypes.SolanaConfig) bool {
+	return len(cfg.Providers) > 0 || len(cfg.BasicRouteNodes) > 0 || len(cfg.DasAPINodes) > 0 || len(cfg.WSHostNodes) > 0
+}
+
+// hasMethodBasedConfig checks if the configuration contains method-based routing configuration
+func hasMethodBasedConfig(cfg *configtypes.SolanaConfig) bool {
+	return len(cfg.Providers) > 0
 }
 
 func (s *Adapter) GetName() string {
@@ -80,13 +121,77 @@ func (s *Adapter) GetHostNames() []string {
 	return s.hostNames
 }
 
+// ProxyWSRequest handles WebSocket proxy requests
 func (s *Adapter) ProxyWSRequest(c echo.Context) error {
-	return s.wsTransport.DefaultProxyWS(c) // TODO: resolve for devnet
+	// Try to use method-based routing for WebSockets first
+	if s.methodRouter != nil {
+		balancer, found := s.methodRouter.GetBalancerForMethod(WebSocketMethodName)
+		if found && balancer != nil && balancer.IsAvailable() {
+			return s.methodBasedProxyWS(c, balancer)
+		}
+	}
+	
+	// Fall back to legacy WebSocket transport
+	if s.wsTransport != nil {
+		return s.wsTransport.DefaultProxyWS(c)
+	}
+	
+	return echo.NewHTTPError(http.StatusServiceUnavailable, "No WebSocket handlers configured")
+}
+
+// methodBasedProxyWS handles WebSocket proxy using method-based routing
+func (s *Adapter) methodBasedProxyWS(c echo.Context, wsBalancer balancer.TargetSelector[*ProxyTarget]) error {
+	target, _, err := wsBalancer.GetNext(nil)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "No WebSocket targets available")
+	}
+	
+	cc, ok := c.(*echoUtil.CustomContext)
+	if ok {
+		cc.SetProvider(target.provider)
+	}
+	
+	var wrapped configtypes.WrappedURL
+	err = wrapped.UnmarshalText([]byte(target.url))
+	if err != nil {
+		return fmt.Errorf("UnmarshalText: %s", err)
+	}
+	
+	c.Request().Host = wrapped.Host
+	c.Request().URL = &url.URL{}
+	
+	reverseProxy := &httputil.ReverseProxy{Director: func(req *http.Request) { rewriteRequestURL(req, wrapped.ToURLPtr()) }}
+	reverseProxy.ServeHTTP(c.Response(), c.Request())
+	
+	return nil
+}
+
+// rewriteRequestURL rewrites the request URL for WebSocket proxy
+func rewriteRequestURL(req *http.Request, targetURL *url.URL) {
+	req.URL.Scheme = targetURL.Scheme
+	req.URL.Host = targetURL.Host
+	req.URL.Path = targetURL.Path
+	
+	if targetURL.RawQuery == "" || req.URL.RawQuery == "" {
+		req.URL.RawQuery = targetURL.RawQuery + req.URL.RawQuery
+	} else {
+		req.URL.RawQuery = targetURL.RawQuery + "&" + req.URL.RawQuery
+	}
 }
 
 func (s *Adapter) ProxyPostRequest(c *echoUtil.CustomContext) (resBody []byte, resCode int, err error) {
 	reqMethods := c.GetReqMethods()
-
+	
+	// Try method-based routing first if available
+	if s.methodTransport != nil && s.methodTransport.canHandle(reqMethods) {
+		if s.methodTransport.isAvailable() {
+			return s.methodTransport.SendRequest(c)
+		}
+		
+		return nil, http.StatusServiceUnavailable, echo.NewHTTPError(http.StatusServiceUnavailable, util.ExtraNodeNoAvailableTargetsErrorResponse)
+	}
+	
+	// Fall back to legacy routing if method-based routing is not available or can't handle the request
 	if s.cNFTTransport != nil && s.cNFTTransport.canHandle(reqMethods) {
 		if s.cNFTTransport.isAvailable() {
 			return s.cNFTTransport.SendRequest(c)
@@ -103,17 +208,17 @@ func (s *Adapter) ProxyPostRequest(c *echoUtil.CustomContext) (resBody []byte, r
 	return resBody, http.StatusOK, err
 }
 
-func (s *Adapter) initTransports(cfg *configtypes.SolanaConfig) (err error) { //nolint:gocritic
-	var allTargets []*ProxyTarget
+func (s *Adapter) initLegacyTransports(cfg *configtypes.SolanaConfig) (err error) { //nolint:gocritic
+	var rpcTargets []*ProxyTarget
 
 	// Create ProxyTargets for BasicRouteNodes.
 	for _, node := range cfg.BasicRouteNodes {
-		allTargets = append(allTargets, NewProxyTarget(models.URLWithMethods{URL: node.URL.String()}, 0, node.Provider, node.NodeType))
+		rpcTargets = append(rpcTargets, NewProxyTarget(models.URLWithMethods{URL: node.URL.String()}, 0, node.Provider, node.NodeType))
 	}
 
 	// Create publicTransport only if there are BasicRouteNodes.
-	if len(allTargets) > 0 {
-		s.publicTransport, err = NewPublicTransport(allTargets, s.isMainnet) // Use s.isMainnet
+	if len(rpcTargets) > 0 {
+		s.publicTransport, err = NewPublicTransport(rpcTargets, s.isMainnet)
 		if err != nil {
 			return fmt.Errorf("NewPublicTransport: %s", err)
 		}
