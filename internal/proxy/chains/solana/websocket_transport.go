@@ -69,36 +69,6 @@ func (p *ProxyTransport) DefaultProxyWS(c echo.Context) (err error) {
 	return nil
 }
 
-func (p *ProxyTransport) ProxySSE(c echo.Context) (err error) {
-	target, _, err := p.wsTargets.GetNext(nil)
-	if err != nil {
-		return err
-	}
-	if target == nil {
-		return errors.New("empty target")
-	}
-
-	var wrapped configtypes.WrappedURL
-	err = wrapped.UnmarshalText([]byte(target.url))
-	if err != nil {
-		return fmt.Errorf("UnmarshalText: %s", err)
-	}
-
-	c.Request().Host = wrapped.Host
-	if additionalPath := p.getRestPath(c); additionalPath != "" {
-		c.Request().URL, err = url.Parse(additionalPath)
-		if err != nil {
-			return fmt.Errorf("Parse: %s", err)
-		}
-	} else {
-		c.Request().URL = &url.URL{}
-	}
-
-	reverseProxy := &httputil.ReverseProxy{Director: func(req *http.Request) { rewriteRequestURL(req, wrapped.ToURLPtr()) }}
-	reverseProxy.ServeHTTP(c.Response(), c.Request())
-
-	return nil
-}
 func rewriteRequestURL(req *http.Request, target *url.URL) {
 	targetQuery := target.RawQuery
 	req.URL.Scheme = target.Scheme

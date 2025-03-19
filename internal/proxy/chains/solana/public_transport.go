@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/labstack/echo/v4"
 
 	"aura-proxy/internal/pkg/log"
@@ -38,7 +37,6 @@ type (
 	publicTransport struct {
 		getSlotTime                time.Time
 		httpClient                 *http.Client
-		rpcClient                  *rpc.Client
 		recentlyUsedEndpointTarget *ProxyTarget
 		targets                    []*ProxyTarget
 
@@ -65,13 +63,11 @@ func NewPublicTransport(targets []*ProxyTarget, isMainnet bool) (*publicTranspor
 		maxAttempts: 10,
 		currentSlot: mainnetPreSetUpSlot,
 		getSlotTime: time.Unix(mainnetPreSetUpGetSlotTimeUnix, 0),
-		rpcClient:   rpc.New(rpc.MainNetBeta_RPC),
 		targets:     targets,
 	}
 	if !isMainnet {
 		pt.currentSlot = devnetPreSetUpSlot
 		pt.getSlotTime = time.Unix(devnetPreSetUpGetSlotTimeUnix, 0)
-		pt.rpcClient = rpc.New(rpc.DevNet_RPC)
 	}
 
 	return pt, nil
@@ -258,17 +254,6 @@ func (pt *publicTransport) NextAvailableTarget(reqMethods []string, reqType mode
 	if target != nil {
 		return target
 	}
-
-	return nil
-}
-
-func (pt *publicTransport) SyncSlotFromMainnet(ctx context.Context) error {
-	slot, err := pt.rpcClient.GetSlot(ctx, rpc.CommitmentFinalized)
-	if err != nil {
-		return fmt.Errorf("GetSlot: %s", err)
-	}
-
-	pt.currentSlot, pt.getSlotTime = int64(slot), time.Now()
 
 	return nil
 }
