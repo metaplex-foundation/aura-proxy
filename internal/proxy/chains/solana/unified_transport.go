@@ -102,26 +102,18 @@ func (t *UnifiedTransport) sendRequestWithRetries(c *echoUtil.CustomContext) (re
 		return nil, http.StatusServiceUnavailable, 0, fmt.Errorf("no balancer available for method %s", primaryMethod)
 	}
 
+	reqCtx := c.Request().Context()
+	exclude := make([]int, 0)
+
 	var (
-		target          *ProxyTarget
-		targetIndex     int
-		startTime       time.Time
-		responseTime    int64
-		firstSlotOnNode int64
-		analyzeErr      *AnalyzeError
-		invalidReqErr   bool
-		reqCtx          = c.Request().Context()
+		target      *ProxyTarget
+		targetIndex int
 	)
 
-	exclude := make([]int, 0)
-	attempts = 0
-
-outerLoop:
-	for ; attempts < t.maxAttempts; attempts++ {
+	for attempts = 0; attempts < t.maxAttempts; attempts++ {
 		select {
 		case <-reqCtx.Done():
-			err = reqCtx.Err()
-			break outerLoop
+			return nil, statusCode, attempts, reqCtx.Err()
 		default:
 		}
 
@@ -129,83 +121,89 @@ outerLoop:
 		target, targetIndex, err = targetSelector.GetNext(exclude)
 		if err != nil {
 			// No more available targets
-			break outerLoop
+			break
 		}
 
 		// Set provider in context for metrics
 		c.SetProvider(target.provider)
 
-		startTime = time.Now()
+		startTime := time.Now()
+		respBody, statusCode, err = t.httpRequester.DoRequest(c, target.url)
+		responseTime := time.Since(startTime).Milliseconds()
 
-		// Handle request and error analysis in a self-contained function to simplify control flow
-		mustContinue, isAvailable := func() (bool, bool) {
-			// Make the request
-			respBody, statusCode, err = t.httpRequester.DoRequest(c, target.url)
-			responseTime = time.Since(startTime).Milliseconds()
+		// Analyze response and determine if we should continue retrying
+		mustContinue, isAvailable, firstSlotOnNode := t.analyzeResponse(c, target, reqCtx, respBody, err)
 
-			// Check for errors
-			if err != nil {
-				mute, isAvailable := isMutedErr(err, reqCtx.Err())
-				if !mute {
-					log.Logger.Proxy.Errorf("makeHTTPRequest (id %s): %s", c.GetReqID(), err)
-				}
-				return true, isAvailable
-			}
+		// Update metrics and stats
+		t.updateMetricsAndStats(c, target, methods, mustContinue, isAvailable, responseTime, firstSlotOnNode)
 
-			// Analyze response for RPC errors
-			firstSlotOnNode, invalidReqErr, analyzeErr, err = rpcErrorAnalysis(decodeNodeResponse(c, respBody))
-			if err != nil { // check for log
-				log.Logger.Proxy.Errorf("responseError (id %s) (%s): %s", c.GetReqID(), target.url, err)
-			}
-			if invalidReqErr {
-				c.SetProxyUserError(true)
-				return false, true
-			}
-			if err != nil || analyzeErr != nil {
-				return true, false
-			}
-
-			return false, true
-		}()
-
-		// Update metrics for partner node
-		if target.provider != "" {
-			metrics.IncPartnerNodeUsage(target.provider, !mustContinue)
-			c.ReachPartnerNode()
-		}
-
-		// Update target stats
-		if firstSlotOnNode != 0 {
-			// slotAmount calculation if available
-			firstSlotOnNode = calculateSlot(t.currentSlot, t.getSlotTime, firstSlotOnNode)
-		}
-		t.methodRouter.UpdateTargetStats(target, isAvailable, methods, responseTime, firstSlotOnNode)
-
-		// If no need to continue, break the loop
 		if !mustContinue {
 			attempts++ // increment for success case
-			break
+			return respBody, statusCode, attempts, err
 		}
 
-		// Add failed target to exclusion list
 		exclude = append(exclude, targetIndex)
 	}
 
 	// Handle errors and edge cases
 	if len(respBody) == 0 && err == nil {
-		switch {
-		case reqCtx.Err() != nil:
-			err = reqCtx.Err()
-		case target == nil:
-			c.SetRPCErrors([]int{util.ExtraNodeNoAvailableTargetsErrorResponse.Error.Code})
-			err = echo.NewHTTPError(http.StatusServiceUnavailable, util.ExtraNodeNoAvailableTargetsErrorResponse)
-		default:
-			c.SetRPCErrors([]int{util.ExtraNodeAttemptsExceededErrorResponse.Error.Code})
-			err = echo.NewHTTPError(http.StatusInternalServerError, util.ExtraNodeNoAvailableTargetsErrorResponse)
-		}
+		err = t.handleEmptyResponse(c, reqCtx, target)
 	}
 
 	return respBody, statusCode, attempts, err
+}
+
+func (t *UnifiedTransport) analyzeResponse(c *echoUtil.CustomContext, target *ProxyTarget, reqCtx context.Context, respBody []byte, err error) (mustContinue bool, isAvailable bool, firstSlotOnNode int64) {
+	if err != nil {
+		mute, isAvailable := isMutedErr(err, reqCtx.Err())
+		if !mute {
+			log.Logger.Proxy.Errorf("makeHTTPRequest (id %s): %s", c.GetReqID(), err)
+		}
+		return true, isAvailable, 0
+	}
+
+	// Analyze response for RPC errors
+	firstSlotOnNode, invalidReqErr, analyzeErr, err := rpcErrorAnalysis(decodeNodeResponse(c, respBody))
+	if err != nil {
+		log.Logger.Proxy.Errorf("responseError (id %s) (%s): %s", c.GetReqID(), target.url, err)
+	}
+	if invalidReqErr {
+		c.SetProxyUserError(true)
+		return false, true, firstSlotOnNode
+	}
+	if err != nil || analyzeErr != nil {
+		return true, false, firstSlotOnNode
+	}
+
+	return false, true, firstSlotOnNode
+}
+
+func (t *UnifiedTransport) updateMetricsAndStats(c *echoUtil.CustomContext, target *ProxyTarget, methods []string, mustContinue bool, isAvailable bool, responseTime int64, firstSlotOnNode int64) {
+	// Update metrics for partner node
+	if target.provider != "" {
+		metrics.IncPartnerNodeUsage(target.provider, !mustContinue)
+		c.ReachPartnerNode()
+	}
+
+	// Update target stats
+	if firstSlotOnNode != 0 {
+		// slotAmount calculation if available
+		firstSlotOnNode = calculateSlot(t.currentSlot, t.getSlotTime, firstSlotOnNode)
+	}
+	t.methodRouter.UpdateTargetStats(target, isAvailable, methods, responseTime, firstSlotOnNode)
+}
+
+func (t *UnifiedTransport) handleEmptyResponse(c *echoUtil.CustomContext, reqCtx context.Context, target *ProxyTarget) error {
+	switch {
+	case reqCtx.Err() != nil:
+		return reqCtx.Err()
+	case target == nil:
+		c.SetRPCErrors([]int{util.ExtraNodeNoAvailableTargetsErrorResponse.Error.Code})
+		return echo.NewHTTPError(http.StatusServiceUnavailable, util.ExtraNodeNoAvailableTargetsErrorResponse)
+	default:
+		c.SetRPCErrors([]int{util.ExtraNodeAttemptsExceededErrorResponse.Error.Code})
+		return echo.NewHTTPError(http.StatusInternalServerError, util.ExtraNodeNoAvailableTargetsErrorResponse)
+	}
 }
 
 // calculateSlot calculates the slot amount based on current mainnet slot and timing
