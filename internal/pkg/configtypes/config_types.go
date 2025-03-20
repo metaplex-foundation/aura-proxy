@@ -34,25 +34,25 @@ type (
 
 		// Method groups shared across providers
 		MethodGroups []MethodGroupConfig `json:"methodGroups,omitempty"`
-		
+
 		// New method-based routing configuration
-		Providers    []ProviderConfig    `json:"providers,omitempty"`
+		Providers []ProviderConfig `json:"providers,omitempty"`
 	}
 
 	// New configuration types for method-based routing
 	ProviderConfig struct {
-		Name           string           `json:"name"`
-		Endpoints      []EndpointConfig `json:"endpoints"`
+		Name      string           `json:"name"`
+		Endpoints []EndpointConfig `json:"endpoints"`
 	}
 
 	EndpointConfig struct {
-		URL            string       `json:"url"`
-		Weight         float64      `json:"weight,omitempty"` // Default: 1.0
-		NodeType       solana.NodeType `json:"nodeType,omitempty"` // For backward compatibility
-		Methods        []string     `json:"methods,omitempty"`     // Methods this endpoint handles well
-		ExcludeMethods []string     `json:"excludeMethods,omitempty"` // Methods to exclude
-		MethodGroups   []string     `json:"methodGroups,omitempty"`  // Named method groups
-		HandleOther    bool         `json:"handleOther,omitempty"`   // Handle methods not explicitly assigned elsewhere
+		URL            string          `json:"url"`
+		Weight         float64         `json:"weight,omitempty"`         // Default: 1.0
+		NodeType       solana.NodeType `json:"nodeType,omitempty"`       // For backward compatibility
+		Methods        []string        `json:"methods,omitempty"`        // Methods this endpoint handles well
+		ExcludeMethods []string        `json:"excludeMethods,omitempty"` // Methods to exclude
+		MethodGroups   []string        `json:"methodGroups,omitempty"`   // Named method groups
+		HandleOther    bool            `json:"handleOther,omitempty"`    // Handle methods not explicitly assigned elsewhere
 	}
 
 	MethodGroupConfig struct {

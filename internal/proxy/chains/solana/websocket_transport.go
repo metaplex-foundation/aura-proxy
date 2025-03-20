@@ -12,7 +12,6 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"aura-proxy/internal/pkg/configtypes"
-	"aura-proxy/internal/pkg/models"
 	"aura-proxy/internal/pkg/util/balancer"
 	echoUtil "aura-proxy/internal/pkg/util/echo"
 )
@@ -20,19 +19,14 @@ import (
 type (
 	ProxyTransport struct {
 		httpClient *http.Client
-		wsTargets  *balancer.RoundRobin[*ProxyTarget]
+		wsTargets  balancer.TargetSelector[*ProxyTarget]
 	}
 )
 
-func NewDefaultProxyTransport(hosts []configtypes.SolanaNode) *ProxyTransport {
-	targets := make([]*ProxyTarget, 0, len(hosts))
-	for i := range hosts {
-		targets = append(targets, NewProxyTarget(models.URLWithMethods{URL: hosts[i].URL.String()}, 0, hosts[i].Provider, hosts[i].NodeType))
-	}
-
+func NewDefaultProxyTransport(target balancer.TargetSelector[*ProxyTarget]) *ProxyTransport {
 	return &ProxyTransport{
 		httpClient: &http.Client{Timeout: echoUtil.APIWriteTimeout - time.Second},
-		wsTargets:  balancer.NewRoundRobin(targets),
+		wsTargets:  target,
 	}
 }
 

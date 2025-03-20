@@ -35,6 +35,10 @@ type (
 const (
 	lastResponsesTimeMsArrLen = 10
 	noFullHistoryPenalty      = 1
+
+	targetJailTime              = time.Second
+	consecutiveSuccessResponses = 10
+	limitWindowSeconds          = 10
 )
 
 func NewProxyTarget(urlWithMethods models.URLWithMethods, reqLimit uint64, provider string, targetType solana.NodeType) *ProxyTarget {
