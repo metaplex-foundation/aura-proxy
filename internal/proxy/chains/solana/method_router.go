@@ -19,22 +19,6 @@ const (
 	DefaultEndpointWeight = 1.0
 )
 
-// MethodRouter is responsible for routing requests to appropriate targets based on the requested method
-type MethodRouter interface {
-	// GetBalancerForMethod returns the appropriate balancer for the given method
-	// This allows the caller to handle target selection with exclude functionality
-	GetBalancerForMethod(method string) (balancer.TargetSelector[*ProxyTarget], bool)
-
-	// IsMethodSupported checks if a method is supported by this router
-	IsMethodSupported(method string) bool
-
-	// IsAvailable checks if there are any available targets
-	IsAvailable() bool
-
-	// UpdateTargetStats updates statistics for a target based on request outcome
-	UpdateTargetStats(target *ProxyTarget, success bool, methods []string, responseTimeMs, slotAmount int64)
-}
-
 // methodTargetInfo holds information about targets for a specific method
 type methodTargetInfo struct {
 	targets []*ProxyTarget

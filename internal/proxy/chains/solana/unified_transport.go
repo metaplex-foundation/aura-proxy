@@ -15,6 +15,7 @@ import (
 	"aura-proxy/internal/pkg/metrics"
 	"aura-proxy/internal/pkg/transport"
 	"aura-proxy/internal/pkg/util"
+	"aura-proxy/internal/pkg/util/balancer"
 	echoUtil "aura-proxy/internal/pkg/util/echo"
 )
 
@@ -32,6 +33,34 @@ const (
 	devnetPreSetUpSlot             = 276140561
 	devnetPreSetUpGetSlotTimeUnix  = 1706592028
 )
+
+// MethodRouter is responsible for routing requests to appropriate targets based on the requested method
+type MethodRouter interface {
+	// GetBalancerForMethod returns the appropriate balancer for the given method
+	// This allows the caller to handle target selection with exclude functionality
+	GetBalancerForMethod(method string) (balancer.TargetSelector[*ProxyTarget], bool)
+
+	// IsMethodSupported checks if a method is supported by this router
+	IsMethodSupported(method string) bool
+
+	// IsAvailable checks if there are any available targets
+	IsAvailable() bool
+
+	// UpdateTargetStats updates statistics for a target based on request outcome
+	UpdateTargetStats(target *ProxyTarget, success bool, methods []string, responseTimeMs, slotAmount int64)
+}
+
+// HTTPRequester interface defines how to make HTTP requests.
+type HTTPRequester interface {
+	DoRequest(c *echoUtil.CustomContext, targetURL string) (respBody []byte, statusCode int, err error)
+}
+
+// RealHTTPRequester is the production implementation of HTTPRequester.
+type RealHTTPRequester struct{}
+
+func (r *RealHTTPRequester) DoRequest(c *echoUtil.CustomContext, targetURL string) (respBody []byte, statusCode int, err error) {
+	return transport.MakeHTTPRequest(c, &http.Client{Timeout: echoUtil.APIWriteTimeout - time.Second}, http.MethodPost, targetURL, false)
+}
 
 type UnifiedTransport struct {
 	// HTTP requester to use for making requests
