@@ -10,6 +10,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	"aura-proxy/internal/pkg/chains/solana"
 	"aura-proxy/internal/pkg/log"
 	"aura-proxy/internal/pkg/metrics"
 	"aura-proxy/internal/pkg/transport"
@@ -93,10 +94,13 @@ func (t *UnifiedTransport) executeWithRetries(c *echoUtil.CustomContext) (respBo
 		return nil, http.StatusBadRequest, 0, fmt.Errorf("no methods specified in request")
 	}
 
+	// Get primary method (first method in the list)
+	primaryMethod := methods[0]
+
 	// Get load balancer for the primary method
-	balancer, found := t.methodRouter.GetBalancerForMethod(methods[0])
+	balancer, found := t.methodRouter.GetBalancerForMethod(primaryMethod)
 	if !found || !balancer.IsAvailable() {
-		return nil, http.StatusServiceUnavailable, 0, fmt.Errorf("no balancer available for method %s", methods[0])
+		return nil, http.StatusServiceUnavailable, 0, fmt.Errorf("no balancer available for method %s", primaryMethod)
 	}
 
 	reqCtx := c.Request().Context()
@@ -104,6 +108,9 @@ func (t *UnifiedTransport) executeWithRetries(c *echoUtil.CustomContext) (respBo
 
 	var target *ProxyTarget
 	var targetIndex int
+
+	// Check if this is a DAS method to enable fast path
+	_, isDASMethod := solana.CNFTMethodList[primaryMethod]
 
 	for attempts = 0; attempts < t.maxAttempts; attempts++ {
 		// Check for context cancellation
@@ -126,6 +133,15 @@ func (t *UnifiedTransport) executeWithRetries(c *echoUtil.CustomContext) (respBo
 		startTime := time.Now()
 		respBody, statusCode, err = t.httpRequester.DoRequest(c, target.url)
 		responseTime := time.Since(startTime).Milliseconds()
+
+		// For DAS methods, skip response analysis and return immediately if we have a response
+		if isDASMethod && err == nil && len(respBody) > 0 {
+			// Still update metrics but assume everything is healthy
+			t.updateMetricsAndStats(c, target, methods, false, true, responseTime, 0)
+
+			attempts++ // Count this successful attempt
+			return respBody, statusCode, attempts, nil
+		}
 
 		// Process response and determine if retry is needed
 		shouldRetry, isHealthy, firstSlotOnNode := t.processResponse(c, target, reqCtx, respBody, err)
