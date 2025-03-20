@@ -80,72 +80,69 @@ func (t *UnifiedTransport) canHandle(methods []string) bool {
 func (t *UnifiedTransport) SendRequest(c *echoUtil.CustomContext) (respBody []byte, statusCode int, err error) {
 	startTime := time.Now()
 
-	respBody, statusCode, attempts, err := t.sendRequestWithRetries(c)
+	respBody, statusCode, attempts, err := t.executeWithRetries(c)
 	transport.ResponsePostHandling(c, err, t.transportType, attempts, time.Since(startTime).Milliseconds())
 
 	return respBody, statusCode, err
 }
 
-// sendRequestWithRetries sends a request with retries using the same robust logic as publicTransport
-func (t *UnifiedTransport) sendRequestWithRetries(c *echoUtil.CustomContext) (respBody []byte, statusCode int, attempts int, err error) {
+// executeWithRetries sends a request with multiple attempts until a valid response is received or max attempts reached
+func (t *UnifiedTransport) executeWithRetries(c *echoUtil.CustomContext) (respBody []byte, statusCode int, attempts int, err error) {
 	methods := c.GetReqMethods()
 	if len(methods) == 0 {
 		return nil, http.StatusBadRequest, 0, fmt.Errorf("no methods specified in request")
 	}
 
-	// Get primary method (first in the list)
-	primaryMethod := methods[0]
-
-	// Get balancer for this method
-	targetSelector, found := t.methodRouter.GetBalancerForMethod(primaryMethod)
-	if !found || !targetSelector.IsAvailable() {
-		return nil, http.StatusServiceUnavailable, 0, fmt.Errorf("no balancer available for method %s", primaryMethod)
+	// Get load balancer for the primary method
+	balancer, found := t.methodRouter.GetBalancerForMethod(methods[0])
+	if !found || !balancer.IsAvailable() {
+		return nil, http.StatusServiceUnavailable, 0, fmt.Errorf("no balancer available for method %s", methods[0])
 	}
 
 	reqCtx := c.Request().Context()
-	exclude := make([]int, 0)
+	excludedTargets := make([]int, 0)
 
-	var (
-		target      *ProxyTarget
-		targetIndex int
-	)
+	var target *ProxyTarget
+	var targetIndex int
 
 	for attempts = 0; attempts < t.maxAttempts; attempts++ {
+		// Check for context cancellation
 		select {
 		case <-reqCtx.Done():
 			return nil, statusCode, attempts, reqCtx.Err()
 		default:
 		}
 
-		// Get next target excluding previously failed ones
-		target, targetIndex, err = targetSelector.GetNext(exclude)
+		// Get next target from the balancer
+		target, targetIndex, err = balancer.GetNext(excludedTargets)
 		if err != nil {
-			// No more available targets
-			break
+			break // No more available targets
 		}
 
-		// Set provider in context for metrics
+		// Record provider for metrics
 		c.SetProvider(target.provider)
 
+		// Execute request to the target
 		startTime := time.Now()
 		respBody, statusCode, err = t.httpRequester.DoRequest(c, target.url)
 		responseTime := time.Since(startTime).Milliseconds()
 
-		// Analyze response and determine if we should continue retrying
-		mustContinue, isAvailable, firstSlotOnNode := t.analyzeResponse(c, target, reqCtx, respBody, err)
+		// Process response and determine if retry is needed
+		shouldRetry, isHealthy, firstSlotOnNode := t.processResponse(c, target, reqCtx, respBody, err)
 
 		// Update metrics and stats
-		t.updateMetricsAndStats(c, target, methods, mustContinue, isAvailable, responseTime, firstSlotOnNode)
+		t.updateMetricsAndStats(c, target, methods, shouldRetry, isHealthy, responseTime, firstSlotOnNode)
 
-		if !mustContinue {
-			attempts++ // increment for success case
+		if !shouldRetry {
+			attempts++ // Count successful attempt
 			return respBody, statusCode, attempts, err
 		}
 
-		exclude = append(exclude, targetIndex)
+		// Mark this target as excluded for next attempts
+		excludedTargets = append(excludedTargets, targetIndex)
 	}
 
-	// Handle errors and edge cases
+	// Handle case with no valid response
 	if len(respBody) == 0 && err == nil {
 		err = t.handleEmptyResponse(c, reqCtx, target)
 	}
@@ -153,35 +150,42 @@ func (t *UnifiedTransport) sendRequestWithRetries(c *echoUtil.CustomContext) (re
 	return respBody, statusCode, attempts, err
 }
 
-func (t *UnifiedTransport) analyzeResponse(c *echoUtil.CustomContext, target *ProxyTarget, reqCtx context.Context, respBody []byte, err error) (mustContinue bool, isAvailable bool, firstSlotOnNode int64) {
+// processResponse analyzes response and determines if retry is needed
+func (t *UnifiedTransport) processResponse(c *echoUtil.CustomContext, target *ProxyTarget, reqCtx context.Context, respBody []byte, err error) (shouldRetry bool, isHealthy bool, firstSlotOnNode int64) {
+	// Check for HTTP/transport errors
 	if err != nil {
-		mute, isAvailable := isMutedErr(err, reqCtx.Err())
-		if !mute {
-			log.Logger.Proxy.Errorf("makeHTTPRequest (id %s): %s", c.GetReqID(), err)
+		isSilent, isHealthy := isMutedErr(err, reqCtx.Err())
+		if !isSilent {
+			log.Logger.Proxy.Errorf("HTTP request failed (id %s): %s", c.GetReqID(), err)
 		}
-		return true, isAvailable, 0
+		return true, isHealthy, 0
 	}
 
 	// Analyze response for RPC errors
-	firstSlotOnNode, invalidReqErr, analyzeErr, err := rpcErrorAnalysis(decodeNodeResponse(c, respBody))
-	if err != nil {
-		log.Logger.Proxy.Errorf("responseError (id %s) (%s): %s", c.GetReqID(), target.url, err)
+	firstSlotOnNode, isUserError, analyzeErr, responseErr := rpcErrorAnalysis(decodeNodeResponse(c, respBody))
+
+	if responseErr != nil {
+		log.Logger.Proxy.Errorf("RPC error (id %s) (%s): %s", c.GetReqID(), target.url, responseErr)
 	}
-	if invalidReqErr {
+
+	if isUserError {
 		c.SetProxyUserError(true)
 		return false, true, firstSlotOnNode
 	}
-	if err != nil || analyzeErr != nil {
+
+	if responseErr != nil || analyzeErr != nil {
 		return true, false, firstSlotOnNode
 	}
 
+	// Success case
 	return false, true, firstSlotOnNode
 }
 
-func (t *UnifiedTransport) updateMetricsAndStats(c *echoUtil.CustomContext, target *ProxyTarget, methods []string, mustContinue bool, isAvailable bool, responseTime int64, firstSlotOnNode int64) {
+// updateMetricsAndStats updates metrics and performance statistics for a request
+func (t *UnifiedTransport) updateMetricsAndStats(c *echoUtil.CustomContext, target *ProxyTarget, methods []string, shouldRetry bool, isHealthy bool, responseTime int64, firstSlotOnNode int64) {
 	// Update metrics for partner node
 	if target.provider != "" {
-		metrics.IncPartnerNodeUsage(target.provider, !mustContinue)
+		metrics.IncPartnerNodeUsage(target.provider, !shouldRetry)
 		c.ReachPartnerNode()
 	}
 
@@ -190,9 +194,10 @@ func (t *UnifiedTransport) updateMetricsAndStats(c *echoUtil.CustomContext, targ
 		// slotAmount calculation if available
 		firstSlotOnNode = calculateSlot(t.currentSlot, t.getSlotTime, firstSlotOnNode)
 	}
-	t.methodRouter.UpdateTargetStats(target, isAvailable, methods, responseTime, firstSlotOnNode)
+	t.methodRouter.UpdateTargetStats(target, isHealthy, methods, responseTime, firstSlotOnNode)
 }
 
+// handleEmptyResponse creates appropriate error when no response was received
 func (t *UnifiedTransport) handleEmptyResponse(c *echoUtil.CustomContext, reqCtx context.Context, target *ProxyTarget) error {
 	switch {
 	case reqCtx.Err() != nil:
