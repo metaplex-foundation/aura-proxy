@@ -166,7 +166,7 @@ func (r *MethodBasedRouter) processProviders(providers []configtypes.ProviderCon
 			}
 		}
 	}
-	r.methodMap[WebSocketMethodName] = nil
+	delete(r.methodMap, WebSocketMethodName)
 
 	// Create balancer for default target info if it exists
 	if r.defaultTargetInfo != nil && len(r.defaultTargetInfo.targets) > 0 {

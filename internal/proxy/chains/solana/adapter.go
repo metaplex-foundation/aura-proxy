@@ -10,11 +10,6 @@ import (
 	echoUtil "aura-proxy/internal/pkg/util/echo"
 )
 
-const (
-	cNFTTargetType   = "c_nft"
-	methodTargetType = "method_based"
-)
-
 var (
 	solanaChainHosts = []string{
 		"aura-mainnet.metaplex.com",
