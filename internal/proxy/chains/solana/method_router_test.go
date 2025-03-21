@@ -181,7 +181,7 @@ func TestMethodBasedRouter_LegacyConfig(t *testing.T) {
 	// Add WebSocket nodes
 	config.WSHostNodes = []configtypes.SolanaNode{
 		{
-			URL:      createURL("wss://ws1.example.com"),
+			URL:      createURL("https://ws1.example.com"),
 			Provider: "ws_provider",
 			NodeType: basicNodeType(),
 		},
@@ -216,9 +216,7 @@ func TestMethodBasedRouter_LegacyConfig(t *testing.T) {
 
 	// Check WebSocket support
 	assert.NotNil(t, router.wsTargetInfo)
-	balancer, found := router.GetBalancerForMethod(WebSocketMethodName)
-	assert.True(t, found)
-	assert.NotNil(t, balancer)
+	assert.NotNil(t, router.wsTargetInfo.balancer)
 
 	// Check default handler
 	assert.NotNil(t, router.defaultTargetInfo)
@@ -348,15 +346,6 @@ func TestMethodBasedRouter_GetBalancerForMethod(t *testing.T) {
 		},
 	}
 
-	// Add WebSocket nodes
-	config.WSHostNodes = []configtypes.SolanaNode{
-		{
-			URL:      createURL("wss://ws1.example.com"),
-			Provider: "ws_provider",
-			NodeType: basicNodeType(),
-		},
-	}
-
 	router, err := NewMethodBasedRouter(config)
 
 	require.NoError(t, err)
@@ -373,9 +362,53 @@ func TestMethodBasedRouter_GetBalancerForMethod(t *testing.T) {
 	assert.NotNil(t, balancer)
 
 	// Check websocket balancer
-	balancer, found = router.GetBalancerForMethod(WebSocketMethodName)
-	assert.True(t, found)
-	assert.NotNil(t, balancer)
+	assert.Nil(t, router.wsTargetInfo)
+}
+
+// TestMethodBasedRouter_WebSocket tests WebSocket endpoint configuration
+func TestMethodBasedRouter_WebSocket(t *testing.T) {
+	config := createTestConfig()
+
+	// Add a provider with WebSocket support
+	config.Providers = []configtypes.ProviderConfig{
+		{
+			Name: "ws_provider",
+			Endpoints: []configtypes.EndpointConfig{
+				{
+					URL:             "https://ws1.example.com",
+					HandleWebSocket: true,
+					NodeType:        basicNodeType(),
+				},
+			},
+		},
+	}
+
+	router, err := NewMethodBasedRouter(config)
+
+	require.NoError(t, err)
+	require.NotNil(t, router)
+
+	// Check WebSocket support
+	assert.NotNil(t, router.wsTargetInfo)
+	assert.NotNil(t, router.wsTargetInfo.balancer)
+
+	// Test with legacy config
+	legacyConfig := createTestConfig()
+	legacyConfig.WSHostNodes = []configtypes.SolanaNode{
+		{
+			URL:      createURL("https://ws2.example.com"),
+			Provider: "legacy_ws",
+			NodeType: basicNodeType(),
+		},
+	}
+
+	legacyRouter, err := NewMethodBasedRouter(legacyConfig)
+	require.NoError(t, err)
+	require.NotNil(t, legacyRouter)
+
+	// Check WebSocket support with legacy config
+	assert.NotNil(t, legacyRouter.wsTargetInfo)
+	assert.NotNil(t, legacyRouter.wsTargetInfo.balancer)
 }
 
 // TestMethodBasedRouter_ConfigEquivalence tests equivalence between legacy and new format configs
@@ -395,7 +428,7 @@ func TestMethodBasedRouter_ConfigEquivalence(t *testing.T) {
 	// Add WebSocket nodes
 	legacyConfig.WSHostNodes = []configtypes.SolanaNode{
 		{
-			URL:      createURL("wss://ws1.example.com"),
+			URL:      createURL("https://ws1.example.com"),
 			Provider: "ws_provider",
 			NodeType: basicNodeType(),
 		},
@@ -434,9 +467,9 @@ func TestMethodBasedRouter_ConfigEquivalence(t *testing.T) {
 			Name: "ws_provider",
 			Endpoints: []configtypes.EndpointConfig{
 				{
-					URL:      "wss://ws1.example.com",
-					Methods:  []string{WebSocketMethodName},
-					NodeType: basicNodeType(),
+					URL:             "https://ws1.example.com",
+					HandleWebSocket: true,
+					NodeType:        basicNodeType(),
 				},
 			},
 		},
@@ -475,12 +508,11 @@ func TestMethodBasedRouter_ConfigEquivalence(t *testing.T) {
 		}
 	}
 
-	// Verify WebSocket method support
-	legacyWSBalancer, legacyWSFound := legacyRouter.GetBalancerForMethod(WebSocketMethodName)
-	newWSBalancer, newWSFound := newRouter.GetBalancerForMethod(WebSocketMethodName)
-
-	assert.Equal(t, legacyWSFound, newWSFound, "WebSocket method found status mismatch")
-	assert.Equal(t, legacyWSBalancer != nil, newWSBalancer != nil, "WebSocket balancer existence mismatch")
+	// Verify WebSocket support
+	assert.NotNil(t, legacyRouter.wsTargetInfo)
+	assert.NotNil(t, legacyRouter.wsTargetInfo.balancer)
+	assert.NotNil(t, newRouter.wsTargetInfo)
+	assert.NotNil(t, newRouter.wsTargetInfo.balancer)
 
 	// Verify default method support
 	legacyDefaultBalancer, legacyDefaultFound := legacyRouter.GetBalancerForMethod("someUndefinedMethod")

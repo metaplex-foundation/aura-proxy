@@ -75,16 +75,14 @@ The following example shows how to configure the `PROXY_SOLANA_CONFIG` environme
           "methods": ["getVersion", "getHealth"],
           "weight": 2.0,
           "nodeType": {
-            "name": "extended_node",
-            "availableSlotsHistory": 0
+            "name": "extended_node"
           }
         },
         {
           "url": "https://mainnet-archive.example.com",
           "methodGroups": ["block_methods"],
           "nodeType": {
-            "name": "archive_node",
-            "availableSlotsHistory": 1000000
+            "name": "archive_node"
           }
         }
       ]
@@ -98,8 +96,20 @@ The following example shows how to configure the `PROXY_SOLANA_CONFIG` environme
           "excludeMethods": ["getBlock"],
           "weight": 1.0,
           "nodeType": {
-            "name": "basic_node",
-            "availableSlotsHistory": 0
+            "name": "basic_node"
+        
+          }
+        }
+      ]
+    },
+    {
+      "name": "websocket_provider",
+      "endpoints": [
+        {
+          "url": "https://mainnet-ws.example.com",
+          "handleWebSocket": true,
+          "nodeType": {
+            "name": "basic_node"
           }
         }
       ]
@@ -111,8 +121,7 @@ The following example shows how to configure the `PROXY_SOLANA_CONFIG` environme
           "url": "https://mainnet-das.example.com",
           "methods": ["getAssetProof"],
           "nodeType": {
-            "name": "basic_node",
-            "availableSlotsHistory": 0
+            "name": "basic_node"
           }
         }
       ]
@@ -169,6 +178,7 @@ Each endpoint can be configured with the following options:
 - `methodGroups`: References to predefined method groups
 - `excludeMethods`: Methods to exclude from handling
 - `handleOther`: Whether this endpoint handles methods not explicitly assigned elsewhere
+- `handleWebSocket`: Whether this endpoint can handle WebSocket connections
 
 ## Important Notes on Method Handling
 
@@ -178,6 +188,15 @@ When an endpoint has `handleOther: true`, it will ONLY handle methods that are n
 
 - It will NOT automatically handle methods that are specified on other endpoints, even if those endpoints are unavailable.
 - You must explicitly list any method you want the endpoint to handle if that method is already specified on another endpoint.
+
+### Understanding `handleWebSocket`
+
+When an endpoint has `handleWebSocket: true`, it will be used for WebSocket connections:
+
+- This flag identifies endpoints that can handle WebSocket protocol (you still need to provide the URL starting with `https://`)
+- You should only set this on endpoints that support the WebSocket protocol
+- You can have multiple WebSocket endpoints for load balancing and failover
+- The router will distribute WebSocket connections based on endpoint weights
 
 ### Example Scenarios
 
@@ -190,7 +209,13 @@ When an endpoint has `handleOther: true`, it will ONLY handle methods that are n
      - `endpoint-B` will never receive `getAccountInfo` requests, even if `endpoint-A` is down
      - Any method not explicitly listed on any endpoint will be routed to `endpoint-B`
 
-3. **Creating redundancy**:
+3. **WebSocket handling**:
+   - If `endpoint-A` has `handleWebSocket: true`:
+     - WebSocket connections will be routed to `endpoint-A`
+     - You can have multiple endpoints with `handleWebSocket: true` for load balancing
+     - Regular HTTP requests will not be sent to WebSocket endpoints unless they also have methods listed
+
+4. **Creating redundancy**:
    - To allow `endpoint-B` to handle `getAccountInfo` as a backup, you must add `getAccountInfo` explicitly to `endpoint-B`'s method list.
    - The router will then use the weight values to determine routing preferences.
 

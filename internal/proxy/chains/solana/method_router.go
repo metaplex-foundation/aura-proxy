@@ -12,9 +12,6 @@ import (
 )
 
 const (
-	// WebSocketMethodName is a special method name for WebSocket connections
-	WebSocketMethodName = "websocket:connect"
-
 	// DefaultEndpointWeight is the default weight for endpoints without a specified weight
 	DefaultEndpointWeight = 1.0
 )
@@ -136,6 +133,18 @@ func (r *MethodBasedRouter) processProviders(providers []configtypes.ProviderCon
 				r.supportedMethods[method] = struct{}{}
 			}
 
+			// Handle WebSocket connections
+			if endpoint.HandleWebSocket {
+				// Create wsTargetInfo if it doesn't exist
+				if r.wsTargetInfo == nil {
+					r.wsTargetInfo = &methodTargetInfo{}
+				}
+
+				// Add target and weight to WebSocket handler
+				r.wsTargetInfo.targets = append(r.wsTargetInfo.targets, target)
+				r.wsTargetInfo.weights = append(r.wsTargetInfo.weights, weight)
+			}
+
 			// Handle "other" methods
 			if endpoint.HandleOther {
 				// Create defaultTargetInfo if it doesn't exist
@@ -161,12 +170,20 @@ func (r *MethodBasedRouter) processProviders(providers []configtypes.ProviderCon
 				return fmt.Errorf("creating balancer for method %s: %w", method, err)
 			}
 			info.balancer = balancer
-			if method == WebSocketMethodName {
-				r.wsTargetInfo = info
-			}
 		}
 	}
-	delete(r.methodMap, WebSocketMethodName)
+
+	// Create balancer for WebSocket target info if it exists
+	if r.wsTargetInfo != nil && len(r.wsTargetInfo.targets) > 0 {
+		balancer, err := balancer.NewProbabilisticBalancer(
+			r.wsTargetInfo.targets,
+			r.wsTargetInfo.weights,
+		)
+		if err != nil {
+			return fmt.Errorf("creating balancer for WebSocket connections: %w", err)
+		}
+		r.wsTargetInfo.balancer = balancer
+	}
 
 	// Create balancer for default target info if it exists
 	if r.defaultTargetInfo != nil && len(r.defaultTargetInfo.targets) > 0 {
@@ -264,7 +281,7 @@ func (r *MethodBasedRouter) processLegacyConfig(cfg *configtypes.SolanaConfig) e
 				balancer: balancer,
 			}
 
-			// Store as wsTargetInfo for direct access, don't duplicate in methodMap
+			// Store as wsTargetInfo for direct access
 			r.wsTargetInfo = wsInfo
 		}
 	}
@@ -301,11 +318,6 @@ func (r *MethodBasedRouter) GetBalancerForMethod(method string) (balancer.Target
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	// Check for WebSocket method
-	if method == WebSocketMethodName && r.wsTargetInfo != nil && r.wsTargetInfo.balancer != nil {
-		return r.wsTargetInfo.balancer, true
-	}
-
 	// Try to find a specific method balancer
 	if info, ok := r.methodMap[method]; ok && info.balancer != nil {
 		return info.balancer, true
@@ -332,11 +344,6 @@ func (r *MethodBasedRouter) UpdateTargetStats(target *ProxyTarget, success bool,
 func (r *MethodBasedRouter) IsMethodSupported(method string) bool {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
-
-	// Check if it's a WebSocket request
-	if method == WebSocketMethodName {
-		return r.wsTargetInfo != nil && r.wsTargetInfo.balancer != nil && r.wsTargetInfo.balancer.IsAvailable()
-	}
 
 	// Check if the method is explicitly supported
 	_, ok := r.supportedMethods[method]

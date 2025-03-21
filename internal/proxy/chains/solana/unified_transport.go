@@ -99,6 +99,8 @@ func (t *UnifiedTransport) canHandle(methods []string) bool {
 	if len(methods) == 0 {
 		return false
 	}
+
+	// Check if all methods are supported
 	for _, method := range methods {
 		if !t.methodRouter.IsMethodSupported(method) {
 			return false

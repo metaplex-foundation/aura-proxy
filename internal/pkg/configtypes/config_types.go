@@ -46,13 +46,14 @@ type (
 	}
 
 	EndpointConfig struct {
-		URL            string          `json:"url"`
-		Weight         float64         `json:"weight,omitempty"`         // Default: 1.0
-		NodeType       solana.NodeType `json:"nodeType,omitempty"`       // For backward compatibility
-		Methods        []string        `json:"methods,omitempty"`        // Methods this endpoint handles well
-		ExcludeMethods []string        `json:"excludeMethods,omitempty"` // Methods to exclude
-		MethodGroups   []string        `json:"methodGroups,omitempty"`   // Named method groups
-		HandleOther    bool            `json:"handleOther,omitempty"`    // Handle methods not explicitly assigned elsewhere
+		URL             string          `json:"url"`
+		Weight          float64         `json:"weight,omitempty"`          // Default: 1.0
+		NodeType        solana.NodeType `json:"nodeType,omitempty"`        // For backward compatibility
+		Methods         []string        `json:"methods,omitempty"`         // Methods this endpoint handles well
+		ExcludeMethods  []string        `json:"excludeMethods,omitempty"`  // Methods to exclude
+		MethodGroups    []string        `json:"methodGroups,omitempty"`    // Named method groups
+		HandleOther     bool            `json:"handleOther,omitempty"`     // Handle methods not explicitly assigned elsewhere
+		HandleWebSocket bool            `json:"handleWebSocket,omitempty"` // Handle WebSocket connections
 	}
 
 	MethodGroupConfig struct {
