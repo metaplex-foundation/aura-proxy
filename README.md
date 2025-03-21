@@ -53,16 +53,21 @@ The following example shows how to configure the `PROXY_SOLANA_CONFIG` environme
 {
   "methodGroups": [
     {
-      "name": "account_methods",
-      "methods": ["getAccountInfo", "getBalance", "getMultipleAccounts"]
+      "name": "basic_methods",
+      "methods": ["getAccountInfo", "getBlockHeight", "getBalance", "getSlot"]
+    },
+    {
+      "name": "das_methods",
+      "methods": [
+        "getAsset", "getAssetBatch", "getAssetProof", "getAssetProofBatch", "getAssetsByOwner",
+        "getAssetsByAuthority",  "getAssetsByCreator", "getAssetsByGroup", "getGrouping",
+        "searchAssets", "getTokenAccounts", "getSignaturesForAsset", "getSignaturesForAssetV2", "getAuraHealth", "getAssets", "get_assets", "getAssetProofs", "get_asset_proofs",
+        "getAssetSignatures", "get_asset_signatures", "getAssetSignaturesV2", "get_asset_signatures_v2", "getNftEditions", "get_nft_editions"
+      ]
     },
     {
       "name": "transaction_methods",
-      "methods": ["getTransaction", "getSignatureStatuses", "sendTransaction", "simulateTransaction"]
-    },
-    {
-      "name": "block_methods",
-      "methods": ["getBlock", "getBlockHeight", "getBlockTime"]
+      "methods": ["simulateTransaction", "sendTransaction"]
     }
   ],
   "providers": [
@@ -70,47 +75,33 @@ The following example shows how to configure the `PROXY_SOLANA_CONFIG` environme
       "name": "primary_provider",
       "endpoints": [
         {
-          "url": "https://mainnet-primary.example.com",
-          "methodGroups": ["account_methods", "transaction_methods"],
-          "methods": ["getVersion", "getHealth"],
-          "weight": 2.0,
-          "nodeType": {
-            "name": "extended_node"
-          }
-        },
-        {
-          "url": "https://mainnet-archive.example.com",
-          "methodGroups": ["block_methods"],
+          "url": "https://primary1.example.com/path",
+          "weight": 20,
           "nodeType": {
             "name": "archive_node"
-          }
-        }
-      ]
-    },
-    {
-      "name": "backup_provider",
-      "endpoints": [
+          },
+          "methodGroups": ["basic_methods"],
+          "handleOther": true
+        },
         {
-          "url": "https://mainnet-backup.example.com",
+          "url": "https://primary2.example.com/path",
+          "weight": 10,
+          "nodeType": {
+            "name": "archive_node"
+          },
+          "methodGroups": ["basic_methods", "transaction_methods"],
           "handleOther": true,
-          "excludeMethods": ["getBlock"],
-          "weight": 1.0,
-          "nodeType": {
-            "name": "basic_node"
-        
-          }
-        }
-      ]
-    },
-    {
-      "name": "websocket_provider",
-      "endpoints": [
+          "handleWebSocket": true
+        },
         {
-          "url": "https://mainnet-ws.example.com",
-          "handleWebSocket": true,
+          "url": "https://primary3.example.com/path",
+          "weight": 10,
           "nodeType": {
-            "name": "basic_node"
-          }
+            "name": "archive_node"
+          },
+          "methodGroups": ["basic_methods"],
+          "handleOther": true,
+          "handleWebSocket": true
         }
       ]
     },
@@ -118,7 +109,45 @@ The following example shows how to configure the `PROXY_SOLANA_CONFIG` environme
       "name": "das_provider",
       "endpoints": [
         {
-          "url": "https://mainnet-das.example.com",
+          "url": "https://das1.example.com",
+          "weight": 10,
+          "nodeType": {
+            "name": "archive_node"
+          },
+          "methodGroups": ["das_methods"]
+        },
+        {
+          "url": "https://das2.example.com",
+          "weight": 10,
+          "nodeType": {
+            "name": "archive_node"
+          },
+          "methodGroups": ["das_methods"]
+        },
+        {
+          "url": "https://das3.example.com",
+          "weight": 10,
+          "nodeType": {
+            "name": "archive_node"
+          },
+          "methodGroups": ["das_methods"]
+        },
+        {
+          "url": "https://das4.example.com",
+          "weight": 10,
+          "nodeType": {
+            "name": "archive_node"
+          },
+          "methodGroups": ["das_methods"]
+        }
+      ]
+    },
+    {
+      "name": "specialized_provider",
+      "endpoints": [
+        {
+          "url": "https://specialized1.example.com",
+          "weight": 10,
           "methods": ["getAssetProof"],
           "nodeType": {
             "name": "basic_node"
@@ -193,10 +222,12 @@ When an endpoint has `handleOther: true`, it will ONLY handle methods that are n
 
 When an endpoint has `handleWebSocket: true`, it will be used for WebSocket connections:
 
-- This flag identifies endpoints that can handle WebSocket protocol (you still need to provide the URL starting with `https://`)
+- This flag identifies endpoints that can handle WebSocket protocol 
+- The URL should be provided as standard HTTP/HTTPS URL (e.g., `https://example.com`)
+- The proxy will automatically convert HTTP URLs to WebSocket URLs (ws/wss) when making WebSocket connections
 - You should only set this on endpoints that support the WebSocket protocol
 - You can have multiple WebSocket endpoints for load balancing and failover
-- The router will distribute WebSocket connections based on endpoint weights
+- The router will distribute WebSocket connections based on endpoint weights (if specified)
 
 ### Example Scenarios
 
@@ -255,3 +286,22 @@ The configuration system maintains backward compatibility with legacy configurat
 - **BasicRouteNodes**: Used as default fallback routes - regular RPC
 
 For production environments, we recommend using the new method-based configuration format for better control and clarity.
+
+## Configuration Best Practices
+
+### Weight Configuration
+
+The `weight` property determines the relative probability of an endpoint being selected for a request:
+
+- Higher weight values increase the likelihood of selection
+- The default weight is 1.0 if not specified
+- In the example above, the endpoint with weight 20 will receive approximately twice as many requests as endpoints with weight 10
+- Use weights to:
+  - Prioritize more reliable or faster endpoints
+  - Direct more traffic to endpoints with higher capacity
+  - Gradually shift traffic when adding new endpoints
+
+### Performance Considerations
+
+- The router makes routing decisions in memory, so even complex configurations have minimal performance impact
+- For high-traffic deployments, consider using similar weights across endpoints in each category for predictable load distribution
