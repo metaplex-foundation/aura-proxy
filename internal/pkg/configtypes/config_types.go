@@ -27,9 +27,38 @@ type (
 		IsMainnet bool `required:"true" default:"true" split_words:"true"`
 	}
 	SolanaConfig struct {
+		// Legacy configuration (for backward compatibility)
 		DasAPINodes     SolanaNodes `json:"dasAPINodes"`
 		BasicRouteNodes SolanaNodes `json:"basicRouteNodes"`
 		WSHostNodes     SolanaNodes `json:"WSHostNodes"`
+
+		// Method groups shared across providers
+		MethodGroups []MethodGroupConfig `json:"methodGroups,omitempty"`
+
+		// New method-based routing configuration
+		Providers []ProviderConfig `json:"providers,omitempty"`
+	}
+
+	// New configuration types for method-based routing
+	ProviderConfig struct {
+		Name      string           `json:"name"`
+		Endpoints []EndpointConfig `json:"endpoints"`
+	}
+
+	EndpointConfig struct {
+		URL             string          `json:"url"`
+		Weight          float64         `json:"weight,omitempty"`          // Default: 1.0
+		NodeType        solana.NodeType `json:"nodeType,omitempty"`        // For backward compatibility
+		Methods         []string        `json:"methods,omitempty"`         // Methods this endpoint handles well
+		ExcludeMethods  []string        `json:"excludeMethods,omitempty"`  // Methods to exclude
+		MethodGroups    []string        `json:"methodGroups,omitempty"`    // Named method groups
+		HandleOther     bool            `json:"handleOther,omitempty"`     // Handle methods not explicitly assigned elsewhere
+		HandleWebSocket bool            `json:"handleWebSocket,omitempty"` // Handle WebSocket connections
+	}
+
+	MethodGroupConfig struct {
+		Name    string   `json:"name"`
+		Methods []string `json:"methods"`
 	}
 )
 

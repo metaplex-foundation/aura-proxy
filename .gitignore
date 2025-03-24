@@ -30,7 +30,6 @@ distribution.yml
 
 .secrets
 .vscode
-mock_*
 .env*
 !.env*.example
 *.pem
