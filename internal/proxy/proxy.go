@@ -34,7 +34,7 @@ const (
 )
 
 type IRequestCounter interface {
-	IncUserRequests(user *auraProto.UserWithTokens, currentReqCount int64, chain, token, requestType string, isMainnet bool)
+	IncUserRequests(user *auraProto.UserWithTokens, creditsUsed int64, chain, token, requestType string, isMainnet bool)
 }
 
 type IStatCollector interface {
@@ -134,8 +134,13 @@ func InitProxy(ctx context.Context, cancel context.CancelFunc, cfg config.Config
 
 func (p *proxy) initAdapters(cfg *config.Config) error { //nolint:gocritic
 	// Conditionally initialize SolanaAdapter.
-	if len(cfg.Proxy.Solana.BasicRouteNodes) > 0 || len(cfg.Proxy.Solana.WSHostNodes) > 0 || len(cfg.Proxy.Solana.DasAPINodes) > 0 {
-		solanaAdapter, err := solana.NewSolanaAdapter(&cfg.Proxy.Solana, cfg.Proxy.IsMainnet)
+	if len(cfg.Proxy.Solana.BasicRouteNodes) > 0 || len(cfg.Proxy.Solana.WSHostNodes) > 0 || len(cfg.Proxy.Solana.DasAPINodes) > 0 || len(cfg.Proxy.Solana.Providers) > 0 {
+		// Create a method router
+		methodRouter, err := solana.NewMethodBasedRouter(&cfg.Proxy.Solana)
+		if err != nil {
+			return fmt.Errorf("creating method router: %w", err)
+		}
+		solanaAdapter, err := solana.NewSolanaAdapter(methodRouter, cfg.Proxy.IsMainnet)
 		if err != nil {
 			return fmt.Errorf("NewSolanaAdapter: %s", err)
 		}
@@ -145,8 +150,13 @@ func (p *proxy) initAdapters(cfg *config.Config) error { //nolint:gocritic
 	}
 
 	// Conditionally initialize EclipseAdapter.
-	if len(cfg.Proxy.Eclipse.DasAPINodes) > 0 && len(cfg.Proxy.Eclipse.BasicRouteNodes) > 0 {
-		eclipseAdapter, err := solana.NewEclipseAdapter(&cfg.Proxy.Eclipse, cfg.Proxy.IsMainnet)
+	if len(cfg.Proxy.Eclipse.DasAPINodes) > 0 || len(cfg.Proxy.Eclipse.BasicRouteNodes) > 0 || len(cfg.Proxy.Eclipse.Providers) > 0 {
+		// Create a method router
+		methodRouter, err := solana.NewMethodBasedRouter(&cfg.Proxy.Eclipse)
+		if err != nil {
+			return fmt.Errorf("creating method router: %w", err)
+		}
+		eclipseAdapter, err := solana.NewEclipseAdapter(methodRouter, cfg.Proxy.IsMainnet)
 		if err != nil {
 			return fmt.Errorf("NewEclipseAdapter: %s", err)
 		}

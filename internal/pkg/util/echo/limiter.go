@@ -68,7 +68,19 @@ func RateLimiterWithConfig(config RateLimiterConfig) echo.MiddlewareFunc {
 				c.Error(config.ErrorHandler(c, err))
 				return nil
 			}
-			if allow, err := config.Store.Allow(identifier, int64(cc.GetReqPerSecond())); !allow {
+
+			reqPerSecond := int64(cc.GetReqPerSecond())
+
+			if reqPerSecond == 0 {
+				c.Error(&echo.HTTPError{
+					Code:     echo.ErrMethodNotAllowed.Code,
+					Message:  "Method is not allowed on current tier.",
+					Internal: err,
+				})
+				return nil
+			}
+
+			if allow, err := config.Store.Allow(identifier, reqPerSecond); !allow {
 				c.Error(config.DenyHandler(c, identifier, err))
 				return nil
 			}

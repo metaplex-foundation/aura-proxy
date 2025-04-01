@@ -41,7 +41,7 @@ func NewRequestCounter(ctx context.Context, wg *sync.WaitGroup, auraAPI auraProt
 	return r
 }
 
-func (r *RequestCounter) IncUserRequests(user *auraProto.UserWithTokens, currentReqCount int64, chain, token, requestType string, isMainnet bool) {
+func (r *RequestCounter) IncUserRequests(user *auraProto.UserWithTokens, creditsUsed int64, chain, token, requestType string, isMainnet bool) {
 	if user == nil {
 		return
 	}
@@ -67,7 +67,7 @@ func (r *RequestCounter) IncUserRequests(user *auraProto.UserWithTokens, current
 		}
 	}
 	r.counters[userID][chain][requestType][token].Reqs++
-	r.counters[userID][chain][requestType][token].Usage += currentReqCount
+	r.counters[userID][chain][requestType][token].Usage += creditsUsed
 	r.mx.Unlock()
 }
 
