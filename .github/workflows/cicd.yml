@@ -185,7 +185,13 @@ jobs:
           git config user.name github-actions
           git config user.email github-actions@github.com
           git commit -am "${{ github.actor }} update $APP version to $VERSION"
-          git push
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "Detected tag build. Pushing to main branch."
+            git push origin HEAD:main
+          else
+            echo "Branch build detected. Pushing current branch."
+            git push
+          fi
           
       - name: Checkout External Config Repository
         uses: actions/checkout@v4
