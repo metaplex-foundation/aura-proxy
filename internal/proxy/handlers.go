@@ -90,9 +90,16 @@ func (p *proxy) ProxyGetRouteHandler(c echo.Context) error {
 
 	// common prepare
 	transport.PrepareGetRequest(cc, adapter.GetName())
+
 	if c.IsWebSocket() {
 		metrics.IncWebsocketConnections(cc.GetChainName())
-		return adapter.ProxyWSRequest(c)
+		err := adapter.ProxyWSRequest(c)
+
+		// if connection was successful save it to user's stats
+		if err == nil {
+			p.requestCounter.IncUserRequests(cc.GetUserInfo(), cc.GetCreditsUsed(), cc.GetChainName(), cc.GetAPIToken(), cc.GetRequestType().String(), p.isMainnet)
+		}
+		return err
 	}
 	return echo.NewHTTPError(http.StatusMethodNotAllowed)
 }

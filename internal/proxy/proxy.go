@@ -34,7 +34,7 @@ const (
 )
 
 type IRequestCounter interface {
-	IncUserRequests(user *auraProto.UserWithTokens, currentReqCount int64, chain, token, requestType string, isMainnet bool)
+	IncUserRequests(user *auraProto.UserWithTokens, creditsUsed int64, chain, token, requestType string, isMainnet bool)
 }
 
 type IStatCollector interface {
