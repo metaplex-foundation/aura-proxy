@@ -46,7 +46,7 @@ jobs:
           ver=$(
             [[ "$GITHUB_REF" == refs/tags/* ]] && \
               echo "${GITHUB_REF#refs/tags/}" || \
-            ( 
+            (
               branch="${GITHUB_REF#refs/heads/}" && \
               branch=$(echo "$branch" | sed 's/\//-/g') && \
               sha=$(git rev-parse --short HEAD) && \
@@ -94,7 +94,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and Push Docker Image
@@ -157,7 +157,7 @@ jobs:
           message: "✅ YAML validation passed for <b>${{ env.APP }}</b> version <b>${{ env.VERSION }}</b>"
           telegram_bot_token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           telegram_chat_id: ${{ secrets.TELEGRAM_CHAT_ID }}
-  
+
       - name: Notify Validation Failed
         if: failure()
         uses: ./.github/actions/telegram
@@ -185,8 +185,14 @@ jobs:
           git config user.name github-actions
           git config user.email github-actions@github.com
           git commit -am "${{ github.actor }} update $APP version to $VERSION"
-          git push
-          
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "Detected tag build. Pushing to main branch."
+            git push origin HEAD:main
+          else
+            echo "Branch build detected. Pushing current branch."
+            git push
+          fi
+
       - name: Checkout External Config Repository
         uses: actions/checkout@v4
         with:
@@ -218,4 +224,3 @@ jobs:
           -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
           -d parse_mode=HTML \
           -d text="❌ CD failed. Triggered by <b>${{ github.actor }}</b> version <b>${{ env.VERSION }}</b>"
-  
