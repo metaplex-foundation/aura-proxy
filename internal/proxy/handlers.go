@@ -90,6 +90,8 @@ func (p *proxy) ProxyGetRouteHandler(c echo.Context) error {
 
 	// common prepare
 	transport.PrepareGetRequest(cc, adapter.GetName())
+	p.requestCounter.IncUserRequests(cc.GetUserInfo(), cc.GetCreditsUsed(), cc.GetChainName(), cc.GetAPIToken(), cc.GetRequestType().String(), p.isMainnet)
+
 	if c.IsWebSocket() {
 		metrics.IncWebsocketConnections(cc.GetChainName())
 		return adapter.ProxyWSRequest(c)
