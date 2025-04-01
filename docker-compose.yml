@@ -2,7 +2,7 @@
 services:
   aura-proxy:
     container_name: aura-proxy
-    image: ghcr.io/adm-metaex/aura-proxy/aura-proxy:fix-ws-charge-1d3f99b
+    image: ghcr.io/adm-metaex/aura-proxy/aura-proxy:fix-ws-charge-9eebfdd
     restart: unless-stopped
     tty: true
     ports:
