@@ -23,6 +23,8 @@ const (
 	GetAssetSignaturesAlias   = "get_asset_signatures"
 	GetAssetSignaturesV2      = "getAssetSignaturesV2"
 	GetAssetSignaturesV2Alias = "get_asset_signatures_v2"
+	GetNftEditions            = "getNftEditions"
+	GetNftEditionsAlias       = "get_nft_editions"
 )
 
 var CNFTMethodList = map[string]uint{
@@ -48,4 +50,6 @@ var CNFTMethodList = map[string]uint{
 	GetAssetSignaturesAlias:   3,
 	GetAssetSignaturesV2:      3,
 	GetAssetSignaturesV2Alias: 3,
+	GetNftEditions:            3,
+	GetNftEditionsAlias:       3,
 }
