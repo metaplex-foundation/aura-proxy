@@ -1,5 +1,7 @@
 github.com/adm-metaex/aura-api v0.5.0 h1:mV0YHtZCBILtnVO57LnSt9By1T96kT4c4gIaXQIwwaQ=
 github.com/adm-metaex/aura-api v0.5.0/go.mod h1:GFlI6WOZVhbhw9kQ76BcxYbLPqCSQJc90h2+PbYDTe0=
+github.com/adm-metaex/aura-api v0.5.9-0.20250407104703-409157e5538a h1:Tn/KiFfyFkxeQwp3nywJyLENeC9QoNMYu2ZzDYZzHIM=
+github.com/adm-metaex/aura-api v0.5.9-0.20250407104703-409157e5538a/go.mod h1:GFlI6WOZVhbhw9kQ76BcxYbLPqCSQJc90h2+PbYDTe0=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/buger/jsonparser v1.1.1 h1:2PnMjfWD7wBILjqQbt530v576A/cAbQvEW9gGIpYMUs=
