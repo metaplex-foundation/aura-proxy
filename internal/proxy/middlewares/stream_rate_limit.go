@@ -13,11 +13,8 @@ import (
 )
 
 const (
-	temporaryPremiumUserID   = "bCEdDk8w8zMt8RvEOQwojQR3LRw1" // TODO: remove temp logic
-	vipMaxConnectionsPerHost = 30
-	maxConnectionsPerHost    = 5
-	headerXForwardedFor      = "X-Forwarded-For"
-	headerXRealIP            = "X-Real-Ip"
+	headerXForwardedFor = "X-Forwarded-For"
+	headerXRealIP       = "X-Real-Ip"
 )
 
 func StreamRateLimitMiddleware(skipper middleware.Skipper) echo.MiddlewareFunc {
@@ -34,7 +31,9 @@ func StreamRateLimitMiddleware(skipper middleware.Skipper) echo.MiddlewareFunc {
 				return next(c)
 			}
 
-			uID := c.(*echoUtil.CustomContext).GetUserInfo().GetUser()
+			cc := c.(*echoUtil.CustomContext)
+			uID := cc.GetUserInfo().GetUser()
+			liveConnectionsLimit := uint8(cc.GetLimitForRequest())
 			if uID == "" {
 				uID, err = limiter.getRealIP(c.Request())
 				if err != nil {
@@ -42,7 +41,7 @@ func StreamRateLimitMiddleware(skipper middleware.Skipper) echo.MiddlewareFunc {
 				}
 			}
 
-			if !limiter.checkAndIncRateLimits(uID) {
+			if !limiter.checkAndIncRateLimits(uID, liveConnectionsLimit) {
 				return echo.ErrTooManyRequests
 			}
 			defer limiter.decHostConnections(uID)
@@ -83,15 +82,11 @@ func (*WSRateLimiter) getRealIP(request *http.Request) (string, error) {
 	return host, nil
 }
 
-func (rl *WSRateLimiter) checkAndIncRateLimits(accID string) bool {
+func (rl *WSRateLimiter) checkAndIncRateLimits(accID string, limit uint8) bool {
 	rl.mutex.Lock()
 	defer rl.mutex.Unlock()
 
-	if accID == temporaryPremiumUserID {
-		if rl.rateLimitMap[accID] >= vipMaxConnectionsPerHost {
-			return false
-		}
-	} else if rl.rateLimitMap[accID] >= maxConnectionsPerHost {
+	if rl.rateLimitMap[accID] >= limit {
 		return false
 	}
 

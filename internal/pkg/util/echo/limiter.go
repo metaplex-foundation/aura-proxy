@@ -69,7 +69,7 @@ func RateLimiterWithConfig(config RateLimiterConfig) echo.MiddlewareFunc {
 				return nil
 			}
 
-			reqPerSecond := int64(cc.GetReqPerSecond())
+			reqPerSecond := int64(cc.GetLimitForRequest())
 
 			if reqPerSecond == 0 {
 				c.Error(&echo.HTTPError{

@@ -296,7 +296,7 @@ func (c *CustomContext) GetIsPartnerNode() bool {
 	return c.isPartnerNode
 }
 
-func (c *CustomContext) GetReqPerSecond() int32 {
+func (c *CustomContext) GetLimitForRequest() int32 {
 	if c.chainName == solana.ChainName {
 		switch c.requestType {
 		case types.RPC:
