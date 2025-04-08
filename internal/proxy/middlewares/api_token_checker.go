@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -12,7 +13,6 @@ import (
 	auraProto "github.com/adm-metaex/aura-api/pkg/proto"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	"github.com/patrickmn/go-cache"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"aura-proxy/internal/pkg/log"
@@ -68,13 +68,31 @@ func (t *TokenChecker) UserBalanceMiddleware() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			cc := c.(*echoUtil.CustomContext)
-			u := cc.GetUserInfo()
-			u.MplxBalance -= cc.GetCreditsUsed()
-			for _, tkn := range u.GetTokens() {
-				t.userCache.Set(tkn, &auraProto.GetUserInfoResp{
-					User: u,
-				}, userInfoCacheInterval)
+
+			token := cc.GetAPIToken()
+			var userInfo *auraProto.UserWithTokens
+
+			t.userCacheMx.RLock()
+			u, ok := t.userCache[token]
+			t.userCacheMx.RUnlock()
+			// very low chance to get into this scenario though
+			// expected that token always will be in the cache
+			if !ok {
+				userInfo = cc.GetUserInfo()
+			} else {
+				userInfo = u.GetUser()
 			}
+
+			tokens := userInfo.GetTokens()
+			userInfo.MplxBalance -= cc.GetCreditsUsed()
+
+			t.userCacheMx.Lock()
+			for _, tkn := range tokens {
+				t.userCache[tkn] = &auraProto.GetUserInfoResp{
+					User: userInfo,
+				}
+			}
+			t.userCacheMx.Unlock()
 
 			return next(c)
 		}
@@ -82,7 +100,8 @@ func (t *TokenChecker) UserBalanceMiddleware() echo.MiddlewareFunc {
 }
 
 type TokenChecker struct {
-	userCache          *cache.Cache
+	userCache          map[string]*auraProto.GetUserInfoResp
+	userCacheMx        sync.RWMutex
 	auraAPI            auraProto.AuraClient
 	subscriptionList   map[int64]*auraProto.SubscriptionWithPricing
 	subscriptionListMx sync.RWMutex
@@ -94,7 +113,8 @@ func NewTokenChecker(ctx context.Context, auraAPI auraProto.AuraClient) (*TokenC
 	}
 
 	t := &TokenChecker{
-		userCache:          cache.New(userCacheTTL, userCacheTTL),
+		userCache:          make(map[string]*auraProto.GetUserInfoResp),
+		userCacheMx:        sync.RWMutex{},
 		subscriptionList:   make(map[int64]*auraProto.SubscriptionWithPricing),
 		subscriptionListMx: sync.RWMutex{},
 		auraAPI:            auraAPI,
@@ -114,7 +134,139 @@ func NewTokenChecker(ctx context.Context, auraAPI auraProto.AuraClient) (*TokenC
 		return nil, err
 	}
 
+	t.setupStream(ctx)
+
 	return t, nil
+}
+
+func (t *TokenChecker) setupStream(ctx context.Context) error {
+	// clear cache before fetching fresh data
+	t.userCacheMx.Lock()
+	clear(t.userCache)
+	t.userCacheMx.Unlock()
+
+	err := t.loadAllTheUsers(ctx)
+	if err != nil {
+		return err
+	}
+
+	// start streaming updates in background
+	go t.maintainUserStream(ctx)
+
+	return nil
+}
+
+func (t *TokenChecker) loadAllTheUsers(ctx context.Context) error {
+	// get initial data
+	s, err := t.auraAPI.GetAllUsers(ctx, new(emptypb.Empty))
+	if err != nil {
+		return fmt.Errorf("getting initial users: %w", err)
+	}
+
+	// load initial data into cache
+	for {
+		userInfo, err := s.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("receiving initial users: %w", err)
+		}
+
+		t.userCacheMx.Lock()
+		for _, tkn := range userInfo.GetUser().GetTokens() {
+			t.userCache[tkn] = userInfo
+		}
+		t.userCacheMx.Unlock()
+	}
+
+	return nil
+}
+
+func (t *TokenChecker) maintainUserStream(ctx context.Context) {
+	backoff := time.Second
+	maxBackoff := 1 * time.Minute
+
+	initialLaunch := true
+
+	for {
+		if !initialLaunch {
+			err := t.loadAllTheUsers(ctx)
+			if err != nil {
+				log.Logger.Proxy.Error("loadAllTheUsers error: ", err)
+				time.Sleep(backoff)
+				continue
+			}
+		}
+
+		initialLaunch = false
+
+		// start the stream
+		stream, err := t.auraAPI.GetUserInfo(ctx)
+		if err != nil {
+			select {
+			case <-ctx.Done():
+				return // context cancelled, exit
+			case <-time.After(backoff):
+				log.Logger.Proxy.Errorf("failed to start user stream: %v, retrying in %v", err, backoff)
+				backoff *= 2
+				if backoff > maxBackoff {
+					backoff = maxBackoff
+				}
+				continue
+			}
+		}
+
+		// reset backoff on successful connection
+		backoff = time.Second
+
+		// process stream updates until an error occurs
+		err = t.processStreamUpdates(ctx, &stream)
+		if ctx.Err() != nil {
+			return // context cancelled, exit
+		}
+
+		// if we're here, there was an error, so wait and retry
+		log.Logger.Proxy.Errorf("stream error: %v, reconnecting in %v", err, backoff)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(backoff):
+			backoff *= 2
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
+		}
+	}
+}
+
+func (t *TokenChecker) processStreamUpdates(ctx context.Context, stream *auraProto.Aura_GetUserInfoClient) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			userInfo, err := (*stream).Recv()
+			if err != nil {
+				if err == io.EOF {
+					return fmt.Errorf("stream closed by server")
+				}
+				return err
+			}
+
+			t.userCacheMx.Lock()
+			for _, tkn := range userInfo.GetUser().GetTokens() {
+				t.userCache[tkn] = userInfo
+			}
+			for _, tkn := range userInfo.GetUser().GetDeletedTokens() {
+				delete(t.userCache, tkn)
+			}
+			for _, tkn := range userInfo.GetUser().GetDeprecatedTokens() {
+				delete(t.userCache, tkn)
+			}
+			t.userCacheMx.Unlock()
+		}
+	}
 }
 
 func (t *TokenChecker) CheckToken(cc *echoUtil.CustomContext, token string) (userInfo *auraProto.UserWithTokens, err error) {
@@ -155,17 +307,14 @@ func (t *TokenChecker) updateSubscriptionList(ctx context.Context) error {
 }
 
 func (t *TokenChecker) getUserFromAPICached(cc *echoUtil.CustomContext, token string) (user *auraProto.GetUserInfoResp, err error) {
-	cachedUserInterface, ok := t.userCache.Get(token)
-	user, _ = cachedUserInterface.(*auraProto.GetUserInfoResp)
-	if !ok || (user.GetUser().GetSubscriptionEndsOn() != nil && time.Now().After(user.GetUser().GetSubscriptionEndsOn().AsTime())) {
-		user, err = t.auraAPI.GetUserInfo(cc.Request().Context(), &auraProto.GetUserInfoReq{ApiToken: token})
-		if err != nil {
-			return user, fmt.Errorf("GetUserInfo: %s", err)
-		}
-		for _, tkn := range user.GetUser().GetTokens() {
-			t.userCache.Set(tkn, user, userInfoCacheInterval)
-		}
+	t.userCacheMx.RLock()
+	cachedUserInterface, ok := t.userCache[token]
+	t.userCacheMx.RUnlock()
+
+	if !ok {
+		return nil, errors.New("no user's token found")
 	}
+	user = cachedUserInterface
 
 	if user.GetUser().GetSubscriptionEndsOn() != nil && time.Now().After(user.GetUser().GetSubscriptionEndsOn().AsTime()) {
 		return nil, errors.New("no active subscription")

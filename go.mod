@@ -2,10 +2,11 @@ module aura-proxy
 
 go 1.24
 
-replace github.com/adm-metaex/aura-api => github.com/adm-metaex/aura-api v0.5.0
+// TODO: uncomment before merge to main
+// replace github.com/adm-metaex/aura-api => github.com/adm-metaex/aura-api v0.5.0
 
 require (
-	github.com/adm-metaex/aura-api v0.5.0
+	github.com/adm-metaex/aura-api v0.5.9-0.20250407104703-409157e5538a
 	github.com/buger/jsonparser v1.1.1
 	github.com/gagliardetto/solana-go v1.12.0
 	github.com/google/uuid v1.6.0
