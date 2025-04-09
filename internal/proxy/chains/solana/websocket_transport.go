@@ -58,9 +58,7 @@ func (p *ProxyTransport) DefaultProxyWS(c echo.Context) (err error) {
 	}
 
 	reverseProxy := &httputil.ReverseProxy{Director: func(req *http.Request) { rewriteRequestURL(req, wrapped.ToURLPtr()) }}
-	startTime := time.Now()
 	reverseProxy.ServeHTTP(c.Response(), c.Request())
-	cc.SetProxyResponseTime(time.Since(startTime).Milliseconds())
 
 	return nil
 }
